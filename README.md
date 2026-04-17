@@ -136,6 +136,13 @@ For B&W film: a single pass on the channel specified by the film table (typicall
 Typical exposure times: ~65 seconds for 4K B&W, ~145 seconds for 4K color.
 
 
+## Film tables
+
+The PP8K requires `.FLM` film table files that define the tone mapping curves for each film stock. These encrypted lookup tables control how the CRT intensity translates to film density across all three color channels.
+
+A collection of original Polaroid film tables for various film stocks is available from Phil Pemberton's [film recorder archive](https://www.philpem.me.uk/code/filmrec/start). Download the film table ZIP, pick the `.FLM` file that matches your film stock, and pass it to `pp8k expose` via the `--film` flag.
+
+
 ## Project structure
 
 ```
@@ -146,7 +153,6 @@ pp8k/
 ├── constants.py    # frame dimensions, camera types, color channels
 ├── transport.py    # Linux SG_IO ioctl wrapper
 ├── commands.py     # SCSI command builders
-├── protocol.py     # PP8KDevice interface (structural typing)
 ├── scsi.py         # real hardware backend
 ├── mock.py         # mock backend for development
 ├── exposure.py     # exposure workflow orchestration
@@ -176,6 +182,11 @@ pp8k/
 If you find this useful, consider buying me a coffee:
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/veroc)
+
+
+## Acknowledgements
+
+Special thanks to [Phil Pemberton](https://www.philpem.me.uk/code/filmrec/start) for his incredible work documenting and preserving information about Polaroid Digital Palette film recorders. His research into the film table encryption, device protocols, and his collection of original film tables made this project possible.
 
 
 ## License

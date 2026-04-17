@@ -113,3 +113,136 @@ SENSE_KEYS = {
     0x06: "Unit Attention",
     0x0B: "Aborted Command",
 }
+
+# ---------------------------------------------------------------------------
+# Device-specific ASC (Additional Sense Code) error messages
+#
+# The PP8K firmware returns vendor-specific ASC values in the sense data
+# when a command fails.  The ASC is a 16-bit value composed of bytes 8-9
+# of the sense response (ASC << 8 | ASCQ in standard SCSI terms).
+#
+# These codes were identified through protocol analysis and real hardware
+# testing.
+# ---------------------------------------------------------------------------
+
+DEVICE_ASC_MESSAGES = {
+    # General
+    0x2000: "No additional information available",
+
+    # Calibration errors (0x2420-0x2428)
+    0x2420: "Calibration error",
+    0x2421: "Calibration error",
+    0x2422: "Calibration error",
+    0x2423: "Calibration error",
+    0x2424: "Calibration error",
+    0x2425: "Calibration error",
+    0x2426: "Calibration error",
+    0x2427: "Calibration error",
+    0x2428: "Calibration error",
+
+    # Diagnostics and hardware (0x2400-0x24FF)
+    0x2400: "Diagnostic failure",
+    0x2401: "Memory failure",
+    0x2402: "Video buffer failure",
+    0x2403: "Video data failure",
+    0x2404: "General I/O failure",
+    0x2405: "Checksum error",
+    0x2406: "Power on failure",
+    0x2407: "Filter wheel jam",
+    0x2408: "Bad filter wheel position",
+    0x2409: "No memory for data queue",
+    0x240B: "Film previously exposed",
+    0x240C: "Bad daughter board configuration",
+    0x240D: "Frame buffer memory failure",
+    0x240E: "Generic firmware error",
+    0x240F: "Unexpected interrupt",
+    0x2410: "Camera fuse blown",
+    0x2411: "Unknown camera back",
+    0x2412: "Camera film door open",
+    0x2413: "Shutter failure",
+    0x2414: "Camera failure",
+
+    # Command protocol errors (0x2500-0x250D)
+    0x2500: "LUN cannot be accessed",
+    0x2501: "LUN cannot be accessed",
+    0x2502: "LUN cannot be accessed",
+    0x2503: "Unsupported function",
+    0x2504: "Requested length not in valid range",
+    0x2505: "Invalid RGB color",
+    0x2506: "Invalid combination of FLAG and LINK bit",
+    0x2507: "Print command issued without Start Exposure",
+    0x2508: "Print command invalid transfer length",
+    0x2509: "Terminate Exposure issued without Start Exposure",
+    0x250A: "Invalid requested length for Set Color Table",
+    0x250B: "Invalid LUN",
+    0x250C: "Statement issued with no termination",
+    0x250D: "Command aborted",
+
+    # MODE SELECT parameter errors (0x2540-0x2559)
+    0x2540: "Invalid field in parameter list",
+    0x2541: "Unsupported function",
+    0x2542: "Requested length not in range",
+    0x2543: "Requested film number incorrect for attached camera back",
+    0x2544: "Requested film number not in range",
+    0x2545: "Requested horizontal resolution not in range",
+    0x2546: "Requested horizontal offset not in range",
+    0x2547: "Requested line length not in range",
+    0x2548: "Requested vertical resolution not in range",
+    0x254A: "Requested luminant red not in range",
+    0x254B: "Requested luminant green not in range",
+    0x254C: "Requested luminant blue not in range",
+    0x254D: "Requested color balance red not in range",
+    0x254E: "Requested color balance green not in range",
+    0x254F: "Requested color balance blue not in range",
+    0x2551: "Illegal parameter in command descriptor",
+    0x2552: "Illegal parameter in command descriptor",
+    0x2553: "Illegal parameter in command descriptor",
+    0x2554: "Illegal parameter in command descriptor",
+    0x2555: "Illegal parameter in command descriptor",
+    0x2556: "Requested image enhancement not in range",
+    0x2557: "Camera adjust command invalid parameters",
+    0x2558: "Bad print command line number",
+    0x2559: "Calibration control byte not in range",
+
+    # Film table errors (0x255A-0x255C, 0x2580-0x2585)
+    0x255A: "Image queue byte not in range",
+    0x255B: "Downloaded film table has bad data",
+    0x255C: "Downloaded film table bad size",
+    0x255D: "Background color command bad parameter",
+    0x255E: "Image brightness out of range",
+    0x255F: "Invalid servo mode",
+    0x2575: "Film type does not match locked film",
+    0x2576: "Flash writer error",
+    0x2580: "Film table has bad camera data",
+    0x2581: "Wrong number of pixel tables in film table",
+    0x2582: "First pixel table is missing in film table",
+    0x2583: "Pixel tables are out of order in film table",
+    0x2584: "Vertical doubles error in film table",
+    0x2585: "Scans error in film table",
+    0x2586: "4096 pixel table is missing in film table",
+    0x2587: "4097 pixel table is missing in film table",
+    0x2588: "8192 pixel table is missing in film table",
+
+    # Frame buffer / exposure errors (0x2560-0x2574)
+    0x2560: "Frame buffer system error",
+    0x2561: "Frame buffer system error",
+    0x2562: "Frame buffer system error",
+    0x2563: "Frame buffer system error",
+    0x2564: "Frame buffer system error",
+    0x2565: "Frame buffer system error",
+    0x2566: "Frame buffer system error",
+    0x2567: "Frame buffer system error",
+    0x2568: "Frame buffer system error",
+    0x2569: "Frame buffer system error",
+    0x256A: "Frame buffer system error",
+    0x256B: "Frame buffer system error",
+    0x256C: "Requested min exposure resolution not in range",
+    0x256D: "Start Exposure issued with single mode exposure in process",
+    0x256E: "Frame buffer system error",
+    0x256F: "Frame buffer system error",
+    0x2570: "Frame buffer system error",
+    0x2571: "Frame buffer system error",
+    0x2572: "Frame buffer system error",
+    0x2573: "Invalid data in set exposure fix parameters command",
+    0x2574: "Invalid data in get failures command",
+}

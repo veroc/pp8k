@@ -21,7 +21,7 @@ import ctypes
 import fcntl
 
 from .errors import SCSIError
-from .constants import SENSE_KEYS
+from .constants import DEVICE_ASC_MESSAGES, SENSE_KEYS
 
 
 # ---------------------------------------------------------------------------
@@ -217,9 +217,11 @@ def sg_io(
         sense_key = sense[2] & 0x0F if len(sense) > 2 else 0xFF
         asc = (sense[8] << 8 | sense[9]) if len(sense) > 9 else 0
         key_name = SENSE_KEYS.get(sense_key, f"Unknown(0x{sense_key:02x})")
+        asc_msg = DEVICE_ASC_MESSAGES.get(asc)
+        detail = f": {asc_msg}" if asc_msg else ""
         raise SCSIError(
-            f"CHECK CONDITION: sense_key={key_name}, ASC=0x{asc:04x}, "
-            f"raw={sense.hex()}",
+            f"CHECK CONDITION: {key_name}{detail} "
+            f"(ASC=0x{asc:04x}, raw={sense.hex()})",
             sense_key=sense_key,
             asc=asc,
         )

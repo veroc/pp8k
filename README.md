@@ -28,7 +28,7 @@ The SCSI protocol and film table format were reverse-engineered through extensiv
 ## Install
 
 ```bash
-pip install git+https://github.com/yourusername/pp8k.git
+pip install git+https://github.com/veroc/pp8k.git
 ```
 
 Requires Linux, Python 3.10+, and a SCSI connection to the device (any SCSI HBA -- PCI, PCMCIA, USB, or PiSCSI).

@@ -6,6 +6,7 @@ Device commands (require a SCSI device path, e.g. /dev/sg2, and root):
     pp8k status <device>                    -- current mode and state
     pp8k slots <device>                     -- list films in device slots 0-19
     pp8k reset <device>                     -- reset device to default state
+    pp8k install <device> <FLM> --slot N    -- persist FLM to a device slot
     pp8k expose <device> <image> --film <FLM> [options]
 
 Offline FLM inspection (no device required):
@@ -109,6 +110,47 @@ def cmd_reset(args):
     try:
         device.reset()
         print("Device reset to default state.")
+    finally:
+        device.close()
+    return 0
+
+
+def cmd_install(args):
+    """Persist an FLM film table to a device slot."""
+    if not 0 <= args.slot <= 19:
+        print(f"Error: --slot must be 0-19, got {args.slot}", file=sys.stderr)
+        return 1
+
+    # Parse the FLM up-front so a bad file fails before we touch the device.
+    flm = pp8k.load_flm(args.file)
+
+    device = pp8k.open(args.device)
+    try:
+        existing = device.film_name(args.slot)
+        print(f"Slot {args.slot}: {existing if existing else '(empty)'}")
+        print(f"New:     {flm.name!r} ({flm.internal_name})")
+
+        if existing and not args.force:
+            if not sys.stdin.isatty():
+                print(
+                    f"Error: slot {args.slot} contains {existing!r}. "
+                    f"Use --force to overwrite non-interactively.",
+                    file=sys.stderr,
+                )
+                return 1
+            answer = input(f"Overwrite slot {args.slot}? [y/N] ").strip().lower()
+            if answer not in ("y", "yes"):
+                print("Aborted.")
+                return 1
+
+        if args.slot == 19:
+            print("Warning: slot 19 is used as the scratch slot by expose() "
+                  "and will be overwritten on the next exposure.")
+
+        print(f"Writing {len(flm.encrypted_data)} bytes to slot {args.slot} "
+              "(flash write, ~5-30s)...")
+        device.install(args.slot, flm)
+        print(f"Installed {flm.name!r} to slot {args.slot}.")
     finally:
         device.close()
     return 0
@@ -308,6 +350,21 @@ def main():
     )
     p_reset.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
 
+    # --- pp8k install ---
+    p_install = subparsers.add_parser(
+        "install", help="Persist a .FLM film table to a device slot",
+    )
+    p_install.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+    p_install.add_argument("file", help="Path to .FLM file")
+    p_install.add_argument(
+        "--slot", type=int, required=True,
+        help="Target slot number (0-19)",
+    )
+    p_install.add_argument(
+        "--force", action="store_true",
+        help="Overwrite without confirmation if the slot is occupied",
+    )
+
     # --- pp8k flm (subcommands: show, validate) ---
     p_flm = subparsers.add_parser(
         "flm", help="Offline FLM file inspection",
@@ -366,6 +423,8 @@ def main():
             sys.exit(cmd_slots(args))
         elif args.command == "reset":
             sys.exit(cmd_reset(args))
+        elif args.command == "install":
+            sys.exit(cmd_install(args))
         elif args.command == "expose":
             sys.exit(cmd_expose(args))
         elif args.command == "flm":

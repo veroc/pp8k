@@ -51,6 +51,10 @@ sudo pp8k slots /dev/sg2
 # Reset the device to machine-default state (clears errors, returns to idle)
 sudo pp8k reset /dev/sg2
 
+# Persist a film table to a slot (survives power cycles, flash write ~5-30s)
+sudo pp8k install /dev/sg2 PLUSXPAN.FLM --slot 3
+sudo pp8k install /dev/sg2 PLUSXPAN.FLM --slot 3 --force   # skip confirm
+
 # Expose an image (B&W/color detected from film table)
 sudo pp8k expose /dev/sg2 photo.tiff --film PLUSXPAN.FLM
 

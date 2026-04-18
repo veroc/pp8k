@@ -137,6 +137,24 @@ class Device:
         """Reset the device to machine defaults (clears errors, idle state)."""
         self._dev.reset_to_default()
 
+    def install(self, slot, flm):
+        """Persist an FLM film table to a device slot (0-19).
+
+        Writes the encrypted FLM bytes to the device's flash memory at
+        the specified slot.  The table survives power cycles and can be
+        selected for future exposures by slot number without re-uploading.
+
+        Slot 19 is used by expose() as a scratch slot; installing there
+        will be overwritten on the next exposure.
+
+        Args:
+            slot: Target slot number (0-19).
+            flm: Parsed film table (from pp8k.load_flm()).
+        """
+        if not 0 <= slot <= 19:
+            raise ValueError(f"slot must be 0-19, got {slot}")
+        self._dev.upload_film_table(slot, flm.encrypted_data)
+
     def expose(
         self,
         image_path,

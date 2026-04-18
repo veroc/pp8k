@@ -38,7 +38,7 @@ from .errors import (
     SCSIError,
 )
 from .exposure import run_exposure
-from .flm import FilmTable, load_flm
+from .flm import FilmTable, LutChannel, LutSet, load_flm, save_flm, serialize_flm
 from .imaging import get_frame_dimensions, image_to_scanlines
 from .mock import MockDevice
 from .models import DeviceInfo, ExposureProgress, ModeState
@@ -50,9 +50,13 @@ __all__ = [
     "open",
     "mock",
     "load_flm",
+    "save_flm",
+    "serialize_flm",
     # Classes
     "Device",
     "FilmTable",
+    "LutSet",
+    "LutChannel",
     # Models
     "DeviceInfo",
     "ModeState",

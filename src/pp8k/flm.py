@@ -1,8 +1,8 @@
-"""FLM film table file parser.
+"""FLM film table file parser and writer.
 
-Reads and decrypts Polaroid .FLM film table files.  These files contain
-lookup tables (LUTs) that control how the PP8K's CRT intensity maps to
-film density for each color channel.
+Reads, writes, and decrypts Polaroid .FLM film table files.  These files
+contain lookup tables (LUTs) that control how the PP8K's CRT intensity
+maps to film density for each color channel.
 
 File structure (15,639 bytes, encrypted):
     Bytes 0-188:     File header (name, camera type, flags, aspect ratio,
@@ -21,9 +21,7 @@ fewer scan lines means more CRT exposure time per line.
 Encryption:
     FLM files use a stream cipher based on a linear congruential PRNG
     (seed=0x35, multiplier=13, increment=7) combined with a fixed bit
-    permutation.  The cipher is applied byte-by-byte.  Encryption and
-    decryption are NOT symmetric -- the bit permutation is applied at
-    different points in the pipeline.
+    permutation.  The cipher is applied byte-by-byte.
 
     Credit: cipher reverse-engineered by Phil Pemberton (dp_filmtable_crypt.c).
 """
@@ -69,6 +67,10 @@ class LutSet(NamedTuple):
     Original Polaroid FLM files typically have scale_r varying (1-50)
     with scale_g and scale_b fixed at 1.  Third-party tools (CFR) may
     set all three scales independently.
+
+    The `header` field holds the 10 raw bytes of the per-set header for
+    sets 1-9 (None for set 0, which has no per-set header).  Preserving
+    it lets us round-trip FLM files byte-perfectly.
     """
     red: LutChannel
     green: LutChannel
@@ -76,14 +78,18 @@ class LutSet(NamedTuple):
     scale_r: int
     scale_g: int
     scale_b: int
+    header: bytes = None
 
 
 class FilmTable(NamedTuple):
     """A parsed .FLM film table -- everything needed to configure an exposure.
 
-    The encrypted_data field holds the raw file bytes (still encrypted),
+    The `encrypted_data` field holds the raw file bytes (still encrypted),
     ready to upload to the device via DFRCMD sub 10.  The device firmware
     decrypts internally.
+
+    The `flags` and `raw_extended` fields preserve original header bytes
+    for byte-perfect round-trip through serialize_flm().
     """
     name: str                           # display name (e.g. "Ektachrome 100")
     internal_name: str                  # 8-char unique ID (e.g. "EKTA100")
@@ -96,6 +102,8 @@ class FilmTable(NamedTuple):
     aspect_h: int                       # aspect ratio height component
     lut_sets: tuple                     # 10 LUT sets (one per resolution tier)
     encrypted_data: bytes               # raw FLM file bytes for device upload
+    flags: int = 0                      # raw flags byte at file offset 25
+    raw_extended: bytes = b""           # file bytes 28-188 (161 bytes of extended header)
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +149,17 @@ class _FilmTableCrypto:
         self._reset()
         return bytes(self._bitperm(self._next_key() ^ b) for b in data)
 
+    def encrypt(self, data):
+        """Encrypt FLM file contents.  Inverse of decrypt.
+
+        The bit permutation is self-inverse (bits 0<->7 swap, 3<->4 swap,
+        and bits 5/6 XOR with 1/2 are all self-inverse), so encrypt
+        uses the same _bitperm function as decrypt, just in the opposite
+        order: permute first, then XOR with the keystream.
+        """
+        self._reset()
+        return bytes(self._next_key() ^ self._bitperm(b) for b in data)
+
 
 _crypto = _FilmTableCrypto()
 
@@ -185,10 +204,12 @@ def _parse_lut_set(dec, set_index):
     #   Sets 1-9: bytes 2, 3, 4 of the set header
     #   Set 0: file header bytes 180, 182, 183
     if hdr_off is not None:
-        scale_r = dec[hdr_off + 2]
-        scale_g = dec[hdr_off + 3]
-        scale_b = dec[hdr_off + 4]
+        header = bytes(dec[hdr_off:hdr_off + SET_HEADER_SIZE])
+        scale_r = header[2]
+        scale_g = header[3]
+        scale_b = header[4]
     else:
+        header = None
         scale_r = dec[180]
         scale_g = dec[182]
         scale_b = dec[183]
@@ -200,6 +221,7 @@ def _parse_lut_set(dec, set_index):
         scale_r=scale_r,
         scale_g=scale_g,
         scale_b=scale_b,
+        header=header,
     )
 
 
@@ -256,6 +278,9 @@ def load_flm(path):
     aspect_w = dec[26]
     aspect_h = dec[27]
 
+    # Preserve the extended header (bytes 28-188) verbatim for round-trip
+    raw_extended = bytes(dec[28:FILE_HEADER_SIZE])
+
     # --- Parse all 10 LUT sets ---
     lut_sets = tuple(_parse_lut_set(dec, i) for i in range(LUT_SETS_COUNT))
 
@@ -271,4 +296,105 @@ def load_flm(path):
         aspect_h=aspect_h,
         lut_sets=lut_sets,
         encrypted_data=raw,
+        flags=flags,
+        raw_extended=raw_extended,
     )
+
+
+# ---------------------------------------------------------------------------
+# Serializer
+# ---------------------------------------------------------------------------
+
+def serialize_flm(table):
+    """Serialize a FilmTable back to encrypted .FLM bytes.
+
+    Produces a 15,639-byte encrypted blob suitable for either writing to
+    disk or uploading to the device via DFRCMD sub 10.  Tables loaded
+    via load_flm() and serialized again round-trip byte-perfectly.
+
+    Args:
+        table: A FilmTable.  Must have exactly 10 LUT sets; sets 1-9
+               must have a 10-byte `header` populated (set 0 must not).
+
+    Returns:
+        15,639 bytes of encrypted FLM data.
+
+    Raises:
+        ValueError: If the table structure is invalid.
+    """
+    if len(table.lut_sets) != LUT_SETS_COUNT:
+        raise ValueError(
+            f"FilmTable must have {LUT_SETS_COUNT} LUT sets, "
+            f"got {len(table.lut_sets)}"
+        )
+
+    buf = bytearray(FLM_FILE_SIZE)
+
+    # --- File header ---
+
+    # Film name (bytes 0-23, ASCII, null-padded)
+    name_bytes = table.name.encode("ascii", errors="replace")[:24]
+    buf[0:len(name_bytes)] = name_bytes
+
+    # Camera type (byte 24)
+    buf[24] = table.camera_type & 0xFF
+
+    # Flags (byte 25): reconstruct from is_bw + bw_filter if B&W, else use raw flags
+    if table.is_bw:
+        buf[25] = 0x10 | ((table.bw_filter & 0x03) << 2)
+    else:
+        buf[25] = table.flags & 0xFF
+
+    # Aspect ratio (bytes 26-27)
+    buf[26] = table.aspect_w & 0xFF
+    buf[27] = table.aspect_h & 0xFF
+
+    # Extended header (bytes 28-188) -- preserved verbatim from raw_extended
+    ext_len = FILE_HEADER_SIZE - 28  # 161
+    if len(table.raw_extended) >= ext_len:
+        buf[28:FILE_HEADER_SIZE] = table.raw_extended[:ext_len]
+    else:
+        # Pad with zeros if raw_extended is short (shouldn't happen for loaded tables)
+        buf[28:28 + len(table.raw_extended)] = table.raw_extended
+
+    # Internal name (bytes 32-39, overwrites into raw_extended area)
+    iname = table.internal_name.encode("ascii", errors="replace")[:8]
+    buf[32:32 + len(iname)] = iname
+    # Null-pad remaining bytes in the 8-byte internal name slot
+    for i in range(32 + len(iname), 40):
+        buf[i] = 0
+
+    # --- 10 LUT sets ---
+    for i, lut_set in enumerate(table.lut_sets):
+        hdr_off, data_off = _lut_set_offsets(i)
+
+        if hdr_off is not None:
+            if lut_set.header is None:
+                raise ValueError(f"LUT set {i} missing required 10-byte header")
+            if len(lut_set.header) != SET_HEADER_SIZE:
+                raise ValueError(
+                    f"LUT set {i} header must be {SET_HEADER_SIZE} bytes, "
+                    f"got {len(lut_set.header)}"
+                )
+            buf[hdr_off:hdr_off + SET_HEADER_SIZE] = lut_set.header
+
+        # Channel data: 256 uint16 LE values per channel, R then G then B
+        for j, val in enumerate(lut_set.red.values):
+            struct.pack_into("<H", buf, data_off + j * 2, val & 0xFFFF)
+        for j, val in enumerate(lut_set.green.values):
+            struct.pack_into("<H", buf, data_off + CHANNEL_ENTRIES * 2 + j * 2, val & 0xFFFF)
+        for j, val in enumerate(lut_set.blue.values):
+            struct.pack_into("<H", buf, data_off + CHANNEL_ENTRIES * 4 + j * 2, val & 0xFFFF)
+
+    return _crypto.encrypt(bytes(buf))
+
+
+def save_flm(path, table):
+    """Serialize and write a FilmTable to a .FLM file.
+
+    Args:
+        path: Destination file path.
+        table: FilmTable to save.
+    """
+    encrypted = serialize_flm(table)
+    Path(path).write_bytes(encrypted)

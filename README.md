@@ -36,12 +36,17 @@ Requires Linux, Python 3.10+, and a SCSI connection to the device (any SCSI HBA 
 
 ## Command line
 
+### Device commands (require /dev/sgN and root)
+
 ```bash
 # Device identification
 sudo pp8k info /dev/sg2
 
 # Current mode and configuration
 sudo pp8k status /dev/sg2
+
+# List the films installed in all 20 device slots
+sudo pp8k slots /dev/sg2
 
 # Expose an image (B&W/color detected from film table)
 sudo pp8k expose /dev/sg2 photo.tiff --film PLUSXPAN.FLM
@@ -51,6 +56,22 @@ sudo pp8k expose /dev/sg2 photo.tiff --film EKTA100.FLM --res 8k --transform fil
 
 # Validate everything without touching the device
 sudo pp8k expose /dev/sg2 photo.tiff --film PLUSXPAN.FLM --dry-run
+```
+
+### Offline FLM inspection (no device required)
+
+```bash
+# Print film table header and a summary of all 10 LUT sets
+pp8k flm show PLUSXPAN.FLM
+
+# Dump one LUT set's curves, sampled every 16 entries
+pp8k flm show PLUSXPAN.FLM --set 7
+
+# Emit one LUT set as CSV
+pp8k flm show PLUSXPAN.FLM --set 7 --csv > plusxpan-set7.csv
+
+# Structural sanity check (size, decrypt, round-trip, header fields)
+pp8k flm validate PLUSXPAN.FLM
 ```
 
 ### Expose options
@@ -104,6 +125,32 @@ flm.camera_type_name # "35mm"
 flm.is_bw           # False
 flm.lut_sets[7]     # LutSet for 4K resolution (set index 7)
 ```
+
+### Writing film tables
+
+`FilmTable`, `LutSet`, and `LutChannel` are `NamedTuple`s. Use `_replace()`
+to build modified copies and write them back with `save_flm()`:
+
+```python
+import pp8k
+
+flm = pp8k.load_flm("PLUSXPAN.FLM")
+
+# Swap in a new name and scale the set 7 red channel
+new_set = flm.lut_sets[7]._replace(scale_r=4)
+modified = flm._replace(
+    name="PLUSXPAN custom",
+    lut_sets=flm.lut_sets[:7] + (new_set,) + flm.lut_sets[8:],
+)
+
+pp8k.save_flm("PLUSXPAN_custom.FLM", modified)
+
+# Or get the encrypted bytes directly (e.g. for in-memory upload)
+blob = pp8k.serialize_flm(modified)   # 15,639 encrypted bytes
+```
+
+Round-trip is byte-perfect: `serialize_flm(load_flm(path)) == open(path, "rb").read()`
+for all 62 original Polaroid film tables tested.
 
 
 ## Supported camera backs

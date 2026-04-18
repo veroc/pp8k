@@ -1,19 +1,25 @@
 """Command-line interface for the pp8k driver.
 
-Provides three commands:
+Device commands (require a SCSI device path, e.g. /dev/sg2, and root):
 
-    pp8k info <device>      -- print device identification
-    pp8k status <device>    -- print current mode and state
+    pp8k info <device>                      -- device identification
+    pp8k status <device>                    -- current mode and state
+    pp8k slots <device>                     -- list films in device slots 0-19
     pp8k expose <device> <image> --film <FLM> [options]
 
-All commands require a SCSI device path (e.g. /dev/sg2) and root access.
+Offline FLM inspection (no device required):
+
+    pp8k flm show <FLM> [--set N] [--csv]   -- inspect header and LUT data
+    pp8k flm validate <FLM>                 -- structural sanity check
 """
 
 import argparse
+import struct
 import sys
 import time
 
 import pp8k
+from pp8k.flm import FILE_HEADER_SIZE, FLM_FILE_SIZE, LUT_DATA_SIZE, LUT_SETS_COUNT, SET_HEADER_SIZE
 from pp8k.models import ExposureProgress
 
 
@@ -78,6 +84,136 @@ def cmd_status(args):
     finally:
         device.close()
     return 0
+
+
+def cmd_slots(args):
+    """List films installed in all 20 device slots."""
+    device = pp8k.open(args.device)
+    try:
+        print(f"{'Slot':<5} {'Film name':<24}")
+        print(f"{'-' * 4:<5} {'-' * 23:<24}")
+        for slot in range(20):
+            name = device.film_name(slot)
+            print(f"{slot:<5} {name if name else '(empty)'}")
+    finally:
+        device.close()
+    return 0
+
+
+def cmd_flm_show(args):
+    """Print FLM header and LUT summary (no device needed)."""
+    flm = pp8k.load_flm(args.file)
+
+    if args.set is None:
+        # Header + 10-set summary
+        print(f"Name:          {flm.name!r}")
+        print(f"Internal:      {flm.internal_name!r}")
+        print(f"Camera:        {flm.camera_type_name} ({flm.camera_type})")
+        print(f"Aspect:        {flm.aspect_w}:{flm.aspect_h}")
+        print(f"Type:          {'B&W' if flm.is_bw else 'Color'}"
+              + (f" [{flm.bw_filter_name} filter]" if flm.is_bw else ""))
+        print(f"Flags:         0x{flm.flags:02X}")
+        print(f"File size:     {len(flm.encrypted_data)} bytes")
+        print()
+        print(f"{'Set':<4} {'Resolution':<10} {'scale R':<8} {'scale G':<8} {'scale B':<8} {'Header':<24}")
+        print(f"{'-' * 3:<4} {'-' * 9:<10} {'-' * 7:<8} {'-' * 7:<8} {'-' * 7:<8} {'-' * 23:<24}")
+        for i, lut in enumerate(flm.lut_sets):
+            if lut.header is not None:
+                res = struct.unpack_from("<H", lut.header, 0)[0]
+                hdr_hex = " ".join(f"{b:02X}" for b in lut.header)
+            else:
+                res = "(base)"
+                hdr_hex = "-- no per-set header --"
+            print(f"{i:<4} {str(res):<10} {lut.scale_r:<8} {lut.scale_g:<8} {lut.scale_b:<8} {hdr_hex:<24}")
+        return 0
+
+    # Single-set curve dump
+    if args.set < 0 or args.set >= LUT_SETS_COUNT:
+        print(f"Error: set must be 0-{LUT_SETS_COUNT - 1}", file=sys.stderr)
+        return 1
+    lut = flm.lut_sets[args.set]
+    if args.csv:
+        print("index,red,green,blue")
+        for i in range(256):
+            print(f"{i},{lut.red.values[i]},{lut.green.values[i]},{lut.blue.values[i]}")
+    else:
+        print(f"Set {args.set}: scale R={lut.scale_r} G={lut.scale_g} B={lut.scale_b}")
+        print(f"{'idx':<4} {'R':<7} {'G':<7} {'B':<7}")
+        for i in range(0, 256, 16):
+            print(f"{i:<4} {lut.red.values[i]:<7} {lut.green.values[i]:<7} {lut.blue.values[i]:<7}")
+    return 0
+
+
+def cmd_flm_validate(args):
+    """Validate an FLM file: size, decrypt, round-trip, structural sanity."""
+    from pathlib import Path
+    path = Path(args.file)
+    problems = []
+    warnings = []
+
+    # Size check
+    raw = path.read_bytes()
+    if len(raw) != FLM_FILE_SIZE:
+        problems.append(f"File size {len(raw)} != {FLM_FILE_SIZE}")
+        print(f"FAIL: {path.name}")
+        for p in problems:
+            print(f"  - {p}")
+        return 1
+
+    # Parse
+    try:
+        flm = pp8k.load_flm(path)
+    except Exception as e:
+        problems.append(f"Parse failed: {e}")
+        print(f"FAIL: {path.name}")
+        for p in problems:
+            print(f"  - {p}")
+        return 1
+
+    # Byte-perfect round-trip
+    rebuilt = pp8k.serialize_flm(flm)
+    if rebuilt != raw:
+        diff = sum(1 for a, b in zip(rebuilt, raw) if a != b)
+        problems.append(f"Round-trip differs in {diff} bytes")
+
+    # Structural checks
+    if not flm.name.strip():
+        warnings.append("Empty film name")
+    if not flm.internal_name.strip():
+        warnings.append("Empty internal_name (8-char ID)")
+    if flm.camera_type > 5:
+        warnings.append(f"Unknown camera_type {flm.camera_type}")
+    if flm.aspect_w == 0 or flm.aspect_h == 0:
+        warnings.append(f"Zero aspect component: {flm.aspect_w}:{flm.aspect_h}")
+
+    # Set 0 has no header; sets 1-9 must have 10-byte headers
+    for i, lut in enumerate(flm.lut_sets):
+        if i == 0 and lut.header is not None:
+            problems.append(f"Set 0 should not have a per-set header")
+        elif i > 0 and (lut.header is None or len(lut.header) != SET_HEADER_SIZE):
+            problems.append(f"Set {i} header invalid")
+
+    # Per-set resolutions should be non-zero for sets 1-9
+    for i in range(1, LUT_SETS_COUNT):
+        if flm.lut_sets[i].header is not None:
+            res = struct.unpack_from("<H", flm.lut_sets[i].header, 0)[0]
+            if res == 0:
+                warnings.append(f"Set {i}: resolution field is 0")
+
+    status = "OK" if not problems else "FAIL"
+    print(f"{status}: {path.name}")
+    print(f"  Name:       {flm.name!r}")
+    print(f"  Internal:   {flm.internal_name!r}")
+    print(f"  Camera:     {flm.camera_type_name}")
+    print(f"  Type:       {'B&W' if flm.is_bw else 'Color'}"
+          + (f" [{flm.bw_filter_name}]" if flm.is_bw else ""))
+    print(f"  Size:       {len(raw)} bytes")
+    print(f"  Round-trip: {'byte-perfect' if rebuilt == raw else 'DIFFERS'}")
+    for p in problems:
+        print(f"  - PROBLEM: {p}")
+    for w in warnings:
+        print(f"  - warning: {w}")
+    return 0 if not problems else 1
 
 
 def cmd_expose(args):
@@ -146,6 +282,32 @@ def main():
     )
     p_status.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
 
+    # --- pp8k slots ---
+    p_slots = subparsers.add_parser(
+        "slots", help="List films installed in device slots 0-19",
+    )
+    p_slots.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+
+    # --- pp8k flm (subcommands: show, validate) ---
+    p_flm = subparsers.add_parser(
+        "flm", help="Offline FLM file inspection",
+    )
+    flm_subs = p_flm.add_subparsers(dest="flm_command", required=True)
+
+    p_flm_show = flm_subs.add_parser("show", help="Print header and LUT summary")
+    p_flm_show.add_argument("file", help="Path to .FLM file")
+    p_flm_show.add_argument(
+        "--set", type=int, default=None,
+        help="Dump curves for a single set (0-9) instead of the summary",
+    )
+    p_flm_show.add_argument(
+        "--csv", action="store_true",
+        help="With --set, emit CSV instead of a sampled table",
+    )
+
+    p_flm_val = flm_subs.add_parser("validate", help="Structural sanity check")
+    p_flm_val.add_argument("file", help="Path to .FLM file")
+
     # --- pp8k expose ---
     p_expose = subparsers.add_parser(
         "expose", help="Expose an image onto film",
@@ -180,8 +342,15 @@ def main():
             sys.exit(cmd_info(args))
         elif args.command == "status":
             sys.exit(cmd_status(args))
+        elif args.command == "slots":
+            sys.exit(cmd_slots(args))
         elif args.command == "expose":
             sys.exit(cmd_expose(args))
+        elif args.command == "flm":
+            if args.flm_command == "show":
+                sys.exit(cmd_flm_show(args))
+            elif args.flm_command == "validate":
+                sys.exit(cmd_flm_validate(args))
     except pp8k.DeviceNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

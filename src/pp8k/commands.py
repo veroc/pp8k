@@ -28,9 +28,12 @@ from .transport import (
     OP_REQUEST_SENSE,
     OP_STOP_PRINT,
     OP_TEST_UNIT_READY,
+    SUB_ASPECT_RATIO,
     SUB_CURRENT_STATUS,
     SUB_FILM_NAME,
+    SUB_GET_COLOR_TAB,
     SUB_INQUIRY_BLOCK,
+    SUB_RESET_TO_DFLT,
     SUB_SET_COLOR_TAB,
     SUB_START_EXPOSURE,
     SUB_TERMINATE_EXPOSURE,
@@ -196,6 +199,24 @@ def set_color_tab(fd, channel, data):
     sg_io(fd, cdb, data_out=data)
 
 
+def get_color_tab(fd, channel):
+    """GET_COLOR_TAB (DFRCMD sub 2) -- read back a per-exposure gamma LUT.
+
+    Returns the 256-byte LUT most recently set via set_color_tab() for
+    the given channel.  Useful for verifying what the device currently
+    holds for a channel (e.g. after a SET_COLOR_TAB sequence).
+
+    Args:
+        fd: SCSI device file descriptor.
+        channel: Color channel (0=RED, 1=GREEN, 2=BLUE).
+
+    Returns:
+        256 bytes of LUT data.
+    """
+    cdb = bytes([OP_DFRCMD, 0, SUB_GET_COLOR_TAB, 0x01, 0x00, channel << 6])
+    return sg_io(fd, cdb, data_in_len=256)
+
+
 def start_exposure(fd):
     """START_EXPOSURE (DFRCMD sub 0) -- begin CRT calibration and exposure.
 
@@ -288,6 +309,39 @@ def film_name(fd, slot):
         if e.sense_key == 0x05:  # Illegal Request = empty slot
             return None
         raise
+
+
+def film_aspect(fd, slot):
+    """ASPECT_RATIO (DFRCMD sub 5) -- read film aspect ratio from a slot.
+
+    Like FILM_NAME, this places the slot number in CDB byte 3 (not a
+    data-size MSB).  Returns the (width, height) aspect components
+    stored in the film table header (same values as FLM bytes 26-27).
+
+    Returns None for empty slots (indicated by Illegal Request sense key).
+    """
+    cdb = bytes([OP_DFRCMD, 0, SUB_ASPECT_RATIO, slot, 2, 0])
+    try:
+        data = sg_io(fd, cdb, data_in_len=2)
+        return (data[0], data[1])
+    except SCSIError as e:
+        if e.sense_key == 0x05:  # Illegal Request = empty slot
+            return None
+        raise
+
+
+def reset_to_default(fd):
+    """RESET_TO_DFLT (DFRCMD sub 7) -- reset the device to machine defaults.
+
+    Clears any existing errors and puts the Digital Palette in a
+    machine-default state (per the original Polaroid SDK).  The original
+    toolkit calls this at the start of DP_Initialize before re-uploading
+    film tables from disk.
+
+    Returns:
+        None.
+    """
+    sg_io(fd, bytes([OP_DFRCMD, 0, SUB_RESET_TO_DFLT, 0, 0, 0]))
 
 
 def upload_film_table(fd, slot, encrypted_data):

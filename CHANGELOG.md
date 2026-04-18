@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.3.0] - 2026-04-18
+
+### Added
+- Three SCSI commands found in the original Polaroid SDK header
+  (`tkdfpcmd.h`):
+    - `GET_COLOR_TAB` (DFRCMD sub 2) -- read back the per-exposure
+      gamma LUT for a channel.
+    - `ASPECT_RATIO` (DFRCMD sub 5) -- read (width, height) aspect for
+      a device slot without needing the FLM file.
+    - `RESET_TO_DFLT` (DFRCMD sub 7) -- reset the device to machine
+      defaults.
+- `Device.film_aspect(slot)` and `Device.film_slots_info()` return
+  aspect alongside slot names.
+- `Device.reset()` high-level wrapper for RESET_TO_DFLT.
+- New CLI command `pp8k reset`.
+- `pp8k slots` now shows an aspect column.
+
+
 ## [0.2.0] - 2026-04-18
 
 ### Added
@@ -60,6 +78,7 @@ Initial release.
 - Progress callbacks emitting `ExposureProgress` (phase, channel, lines
   sent/total, buffer state, ETA).
 
+[0.3.0]: https://github.com/veroc/pp8k/releases/tag/v0.3.0
 [0.2.0]: https://github.com/veroc/pp8k/releases/tag/v0.2.0
 [0.1.1]: https://github.com/veroc/pp8k/releases/tag/v0.1.1
 [0.1.0]: https://github.com/veroc/pp8k/releases/tag/v0.1.0

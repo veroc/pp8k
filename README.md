@@ -45,8 +45,11 @@ sudo pp8k info /dev/sg2
 # Current mode and configuration
 sudo pp8k status /dev/sg2
 
-# List the films installed in all 20 device slots
+# List the films installed in all 20 device slots (name + aspect)
 sudo pp8k slots /dev/sg2
+
+# Reset the device to machine-default state (clears errors, returns to idle)
+sudo pp8k reset /dev/sg2
 
 # Expose an image (B&W/color detected from film table)
 sudo pp8k expose /dev/sg2 photo.tiff --film PLUSXPAN.FLM

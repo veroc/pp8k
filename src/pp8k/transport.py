@@ -69,7 +69,9 @@ SUB_SET_COLOR_TAB = 1        # Load 256-byte gamma LUT for one channel
 SUB_GET_COLOR_TAB = 2        # Read back gamma LUT for one channel
 SUB_TERMINATE_EXPOSURE = 3   # End exposure (advance film, close shutter)
 SUB_FILM_NAME = 4            # Read film table name from a slot
+SUB_ASPECT_RATIO = 5         # Read film aspect ratio from a slot (2 bytes)
 SUB_CURRENT_STATUS = 6       # Read buffer/exposure state (7 bytes)
+SUB_RESET_TO_DFLT = 7        # Reset device to machine-default state
 SUB_UPLOAD_FILM_TABLE = 10   # Upload encrypted FLM data to a slot
 SUB_INQUIRY_BLOCK = 21       # Query block transfer mode (fw >= 564)
 

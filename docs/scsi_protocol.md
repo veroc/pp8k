@@ -181,6 +181,19 @@ correction.  This is separate from the film table LUT stored in the
 device's flash memory.
 
 
+##### GET_COLOR_TAB (sub 2)
+
+Read back the 256-byte per-exposure gamma LUT for one channel.
+
+```
+CDB: [0x0C, 0x00, 0x02, 0x01, 0x00, channel<<6]
+Data: 256 bytes from device
+```
+
+Returns the LUT most recently loaded via SET_COLOR_TAB for the given
+channel.  Useful for verifying current device state.
+
+
 ##### TERMINATE_EXPOSURE (sub 3)
 
 Signal that all scanlines have been sent.
@@ -207,6 +220,20 @@ Response bytes 3-23 contain the ASCII film name.  Returns Illegal
 Request (sense key 0x05) for empty slots.
 
 
+##### ASPECT_RATIO (sub 5)
+
+Read the aspect ratio for a film table loaded in a device slot.
+
+```
+CDB: [0x0C, 0x00, 0x05, slot, 0x02, 0x00]
+Data: 2 bytes from device
+```
+
+Byte 0 is the width component, byte 1 the height (same values as the
+FLM file header at offsets 26-27).  Returns Illegal Request (sense
+key 0x05) for empty slots.
+
+
 ##### CURRENT_STATUS (sub 6)
 
 Read real-time buffer and exposure status.
@@ -226,6 +253,20 @@ Response format:
 | 6      | 1      | Status byte |
 
 Polled continuously during exposure for buffer management.
+
+
+##### RESET_TO_DFLT (sub 7)
+
+Reset the device to machine-default state.
+
+```
+CDB: [0x0C, 0x00, 0x07, 0x00, 0x00, 0x00]
+Data: none
+```
+
+Clears any existing errors and returns the device to an idle state.
+The original Polaroid toolkit calls this at the start of its
+initialization routine, before re-uploading film tables.
 
 
 ##### UPLOAD_FILM_TABLE (sub 10)

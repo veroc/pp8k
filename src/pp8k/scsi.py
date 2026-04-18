@@ -97,6 +97,10 @@ class ScsiDevice:
         """SET_COLOR_TAB -- load a 256-byte gamma LUT for one channel."""
         commands.set_color_tab(self.fd, channel, data)
 
+    def get_color_tab(self, channel):
+        """GET_COLOR_TAB -- read back the 256-byte gamma LUT for one channel."""
+        return commands.get_color_tab(self.fd, channel)
+
     def start_exposure(self):
         """START_EXPOSURE -- begin CRT calibration and exposure."""
         commands.start_exposure(self.fd)
@@ -127,6 +131,14 @@ class ScsiDevice:
     def film_name(self, slot):
         """FILM_NAME -- read film table name from a device slot."""
         return commands.film_name(self.fd, slot)
+
+    def film_aspect(self, slot):
+        """ASPECT_RATIO -- read (width, height) aspect for a device slot."""
+        return commands.film_aspect(self.fd, slot)
+
+    def reset_to_default(self):
+        """RESET_TO_DFLT -- reset the device to machine-default state."""
+        commands.reset_to_default(self.fd)
 
     def upload_film_table(self, slot, encrypted_data):
         """Upload an encrypted .FLM film table to a device slot."""

@@ -5,6 +5,7 @@ Device commands (require a SCSI device path, e.g. /dev/sg2, and root):
     pp8k info <device>                      -- device identification
     pp8k status <device>                    -- current mode and state
     pp8k slots <device>                     -- list films in device slots 0-19
+    pp8k reset <device>                     -- reset device to default state
     pp8k expose <device> <image> --film <FLM> [options]
 
 Offline FLM inspection (no device required):
@@ -87,14 +88,27 @@ def cmd_status(args):
 
 
 def cmd_slots(args):
-    """List films installed in all 20 device slots."""
+    """List films installed in all 20 device slots with aspect ratio."""
     device = pp8k.open(args.device)
     try:
-        print(f"{'Slot':<5} {'Film name':<24}")
-        print(f"{'-' * 4:<5} {'-' * 23:<24}")
-        for slot in range(20):
-            name = device.film_name(slot)
-            print(f"{slot:<5} {name if name else '(empty)'}")
+        print(f"{'Slot':<5} {'Film name':<24} {'Aspect':<8}")
+        print(f"{'-' * 4:<5} {'-' * 23:<24} {'-' * 7:<8}")
+        for entry in device.film_slots_info():
+            name = entry["name"] or "(empty)"
+            aspect = entry["aspect"]
+            aspect_str = f"{aspect[0]}:{aspect[1]}" if aspect else "-"
+            print(f"{entry['slot']:<5} {name:<24} {aspect_str:<8}")
+    finally:
+        device.close()
+    return 0
+
+
+def cmd_reset(args):
+    """Reset the device to machine-default state."""
+    device = pp8k.open(args.device)
+    try:
+        device.reset()
+        print("Device reset to default state.")
     finally:
         device.close()
     return 0
@@ -288,6 +302,12 @@ def main():
     )
     p_slots.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
 
+    # --- pp8k reset ---
+    p_reset = subparsers.add_parser(
+        "reset", help="Reset device to machine-default state",
+    )
+    p_reset.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+
     # --- pp8k flm (subcommands: show, validate) ---
     p_flm = subparsers.add_parser(
         "flm", help="Offline FLM file inspection",
@@ -344,6 +364,8 @@ def main():
             sys.exit(cmd_status(args))
         elif args.command == "slots":
             sys.exit(cmd_slots(args))
+        elif args.command == "reset":
+            sys.exit(cmd_reset(args))
         elif args.command == "expose":
             sys.exit(cmd_expose(args))
         elif args.command == "flm":

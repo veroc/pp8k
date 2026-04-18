@@ -33,6 +33,11 @@ class MockDevice:
             4: "EKTA100",
             5: "PLUSXPAN",
         }
+        self._film_aspects = {
+            4: (3, 2),
+            5: (3, 2),
+        }
+        self._color_tabs = {0: bytes(range(256)), 1: bytes(range(256)), 2: bytes(range(256))}
         self._mode = {
             "buffer_kb": 4096,
             "film_number": 4,
@@ -93,7 +98,10 @@ class MockDevice:
         self._mode["vres"] = vres
 
     def set_color_tab(self, channel, data):
-        pass  # Accept silently
+        self._color_tabs[channel] = bytes(data)
+
+    def get_color_tab(self, channel):
+        return self._color_tabs.get(channel, bytes(range(256)))
 
     def start_exposure(self):
         self._exposure_active = True
@@ -137,5 +145,15 @@ class MockDevice:
     def film_name(self, slot):
         return self._film_slots.get(slot)
 
+    def film_aspect(self, slot):
+        return self._film_aspects.get(slot)
+
+    def reset_to_default(self):
+        self._exposure_active = False
+        self._exposure_state = 0
+        self._buffer_free_kb = 4096
+        self._current_line = 0
+
     def upload_film_table(self, slot, encrypted_data):
         self._film_slots[slot] = f"SLOT{slot}"
+        self._film_aspects[slot] = (3, 2)

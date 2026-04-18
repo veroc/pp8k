@@ -109,9 +109,33 @@ class Device:
         """Read the film table name from a device slot (0-19)."""
         return self._dev.film_name(slot)
 
+    def film_aspect(self, slot):
+        """Read the (width, height) aspect ratio for a device slot.
+
+        Returns None if the slot is empty.
+        """
+        return self._dev.film_aspect(slot)
+
     def film_slots(self):
         """Read all 20 film slot names.  None = empty slot."""
         return {i: self._dev.film_name(i) for i in range(20)}
+
+    def film_slots_info(self):
+        """Read name and aspect for all 20 slots.
+
+        Returns a list of dicts: [{slot, name, aspect}, ...].  `name` and
+        `aspect` are None for empty slots.
+        """
+        out = []
+        for i in range(20):
+            name = self._dev.film_name(i)
+            aspect = self._dev.film_aspect(i) if name is not None else None
+            out.append({"slot": i, "name": name, "aspect": aspect})
+        return out
+
+    def reset(self):
+        """Reset the device to machine defaults (clears errors, idle state)."""
+        self._dev.reset_to_default()
 
     def expose(
         self,

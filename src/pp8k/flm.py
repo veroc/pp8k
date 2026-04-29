@@ -398,3 +398,140 @@ def save_flm(path, table):
     """
     encrypted = serialize_flm(table)
     Path(path).write_bytes(encrypted)
+
+
+# ---------------------------------------------------------------------------
+# Master-curve propagation
+# ---------------------------------------------------------------------------
+#
+# Verified across 57/58 original Polaroid film tables, every FLM follows a
+# 2-master authoring convention:
+#
+#     Sets 0, 2, 4, 6, 7  -- byte-identical copies of "Master A"
+#     Sets 1, 3, 5        -- ceil(Master A / 2)
+#     Set 8               -- independently authored "Master B"
+#     Set 9               -- floor(Master B / 2)
+#
+# The single counter-example, KG6-100.FLM, is a corrupted derivative
+# (Set 0 was edited in isolation by some curve editor without propagating
+# to the master-equivalent sets).  A file that violates the convention
+# loads different curves at different HRES values, breaking calibration.
+#
+# We pick **Set 7 as canonical Master A** (loaded by the firmware at
+# HRES=4096, the 4K production resolution) and **Set 9 as canonical
+# Master B** (loaded at HRES=8192, the 8K production resolution).
+#
+# `serialize_flm` does not auto-normalize -- byte-perfect round-trip is
+# preserved.  Callers that have edited a table should explicitly call
+# `normalize_masters` before serializing.
+
+
+_MASTER_A_COPIES = (0, 2, 4, 6, 7)   # all byte-identical to Set 7
+_MASTER_A_HALVES = (1, 3, 5)         # ceil(Set 7 / 2)
+
+
+def _ceil_half(values):
+    return tuple((v + 1) // 2 for v in values)
+
+
+def _double_clamped(values):
+    return tuple(min(0xFFFF, v * 2) for v in values)
+
+
+def _replace_channels(lut_set, red, green, blue):
+    return lut_set._replace(
+        red=LutChannel(values=tuple(red)),
+        green=LutChannel(values=tuple(green)),
+        blue=LutChannel(values=tuple(blue)),
+    )
+
+
+def normalize_masters(table):
+    """Return a new FilmTable with derived sets recomputed from the
+    canonical masters (Set 7 and Set 9).
+
+    Set 7 propagates byte-identically to Sets 0, 2, 4, 6.  Sets 1, 3, 5
+    are recomputed as ceil(Set 7 / 2).  Set 8 is recomputed as 2 x Set 9
+    (clamped to u16).  Per-set headers and scale factors are preserved
+    untouched.
+
+    Args:
+        table: A FilmTable.
+
+    Returns:
+        A new FilmTable with normalized LUT sets.
+    """
+    sets = list(table.lut_sets)
+    src_a = sets[7]
+    src_b = sets[9]
+
+    # Sets 0, 2, 4, 6 <- Set 7 (Set 7 itself unchanged)
+    for idx in _MASTER_A_COPIES:
+        if idx == 7:
+            continue
+        sets[idx] = _replace_channels(
+            sets[idx], src_a.red.values, src_a.green.values, src_a.blue.values
+        )
+
+    # Sets 1, 3, 5 <- ceil(Set 7 / 2)
+    half_r = _ceil_half(src_a.red.values)
+    half_g = _ceil_half(src_a.green.values)
+    half_b = _ceil_half(src_a.blue.values)
+    for idx in _MASTER_A_HALVES:
+        sets[idx] = _replace_channels(sets[idx], half_r, half_g, half_b)
+
+    # Set 8 <- 2 * Set 9 (clamped to u16)
+    sets[8] = _replace_channels(
+        sets[8],
+        _double_clamped(src_b.red.values),
+        _double_clamped(src_b.green.values),
+        _double_clamped(src_b.blue.values),
+    )
+
+    return table._replace(lut_sets=tuple(sets))
+
+
+def validate_masters(table):
+    """Return a list of human-readable inconsistency messages for any
+    LUT set that doesn't match the 2-master convention.  Empty list = the
+    file conforms.
+
+    Useful as a load-time warning ("this file looks corrupted; saving
+    will normalize") and to flag legacy hand-edited files.
+    """
+    issues = []
+    sets = table.lut_sets
+    src_a = sets[7]
+
+    for idx in (0, 2, 4, 6):
+        for ch_name, ch_a, ch_dst in zip(
+            "RGB",
+            (src_a.red, src_a.green, src_a.blue),
+            (sets[idx].red, sets[idx].green, sets[idx].blue),
+        ):
+            if tuple(ch_dst.values) != tuple(ch_a.values):
+                issues.append(f"Set {idx} {ch_name} differs from Set 7 (Master A)")
+                break
+
+    for idx in (1, 3, 5):
+        for ch_name, ch_a, ch_dst in zip(
+            "RGB",
+            (src_a.red, src_a.green, src_a.blue),
+            (sets[idx].red, sets[idx].green, sets[idx].blue),
+        ):
+            if tuple(ch_dst.values) != _ceil_half(ch_a.values):
+                issues.append(f"Set {idx} {ch_name} is not ceil(Master A / 2)")
+                break
+
+    src_b = sets[9]
+    set8 = sets[8]
+    for ch_name, ch_b, ch_8 in zip(
+        "RGB",
+        (src_b.red, src_b.green, src_b.blue),
+        (set8.red, set8.green, set8.blue),
+    ):
+        if tuple(ch_8.values) != _double_clamped(ch_b.values):
+            issues.append(f"Set 8 {ch_name} is not 2 x Master B (Set 9)")
+            break
+
+    return issues

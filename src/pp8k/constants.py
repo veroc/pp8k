@@ -59,31 +59,20 @@ CAMERA_TYPES = {
 }
 
 # ---------------------------------------------------------------------------
-# Frame dimensions
+# Resolution-tier width mapping
 #
-# Maps (camera_type, resolution) to (width, height) in pixels.
-# The PP8K CRT has a maximum addressable area of 8192 x 7020 pixels.
-# Actual frame dimensions depend on the camera back's film gate size.
-#
-# These values come from the device's MODE SENSE response and the FLM
-# set headers (which encode resolution breakpoints at 1024, 2048, 4032,
-# 4096, 4097, and 8192 horizontal pixels).
+# The PP8K is a programmable-resolution device: MODE SELECT accepts any
+# (hres, vres) up to the CRT's 8192 x 7020 addressable area, and the
+# actual frame height is derived from the film's aspect ratio at run
+# time (see imaging.get_frame_dimensions).  The "4k"/"8k" labels are a
+# driver convention for convenient CLI input.
 # ---------------------------------------------------------------------------
 
-FRAME_DIMENSIONS = {
-    # 35mm (camera_type=1) -- 3:2 aspect ratio
-    (1, "4k"): (4096, 2730),
-    (1, "8k"): (8192, 5462),
-    # 4x5 (camera_type=3) -- 5:4 aspect ratio
-    (3, "4k"): (4096, 3184),
-    (3, "8k"): (8192, 6371),
-    # 6x7 (camera_type=4) -- 7:6 aspect ratio
-    (4, "4k"): (4096, 3510),
-    (4, "8k"): (8192, 7020),
-    # 6x8 (camera_type=5) -- 4:3 aspect ratio
-    (5, "4k"): (4096, 3072),
-    (5, "8k"): (8192, 6144),
+RESOLUTION_HRES = {
+    "4k": 4096,
+    "8k": 8192,
 }
+
 
 # ---------------------------------------------------------------------------
 # Device constants

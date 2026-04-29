@@ -18,32 +18,42 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from .constants import CAMERA_TYPES, FRAME_DIMENSIONS
+from .constants import RESOLUTION_HRES
 
 
-def get_frame_dimensions(camera_type, resolution):
-    """Look up frame dimensions for a camera type and resolution.
+def get_frame_dimensions(aspect_w, aspect_h, resolution):
+    """Compute frame dimensions from a film's aspect ratio and resolution.
+
+    The PP8K is a programmable-resolution device; the host picks any
+    pixel dimensions up to the CRT's maximum and sends them via
+    MODE SELECT.  Per the RasterPlus95 driver docs (§7.3), the correct
+    vres for a borderless exposure is `hres * aspect_h / aspect_w`
+    using the aspect pair stored in the FLM header (bytes 26-27) --
+    e.g. 11:9 for 6x7, 54:42 for 4x5.
 
     Args:
-        camera_type: Camera type code from the FLM header (0-5).
-        resolution: "4k" or "8k".
+        aspect_w: Aspect width component (FLM byte 26, or device sub 5).
+        aspect_h: Aspect height component (FLM byte 27, or device sub 5).
+        resolution: "4k" (hres=4096) or "8k" (hres=8192).
 
     Returns:
         (width, height) in pixels.
 
     Raises:
-        ValueError: If the camera type or resolution is not supported.
+        ValueError: If the resolution label or aspect is not usable.
     """
-    key = (camera_type, resolution.lower())
-    dims = FRAME_DIMENSIONS.get(key)
-    if dims is None:
-        type_name = CAMERA_TYPES.get(camera_type, f"Unknown({camera_type})")
+    hres = RESOLUTION_HRES.get(resolution.lower())
+    if hres is None:
         raise ValueError(
-            f"No frame dimensions for camera type '{type_name}' "
-            f"at resolution '{resolution}'. "
-            f"Supported: 35mm, 4x5, 6x7, 6x8 at 4k/8k."
+            f"Unknown resolution {resolution!r}; use '4k' or '8k'."
         )
-    return dims
+    if aspect_w <= 0 or aspect_h <= 0:
+        raise ValueError(
+            f"Invalid aspect ratio {aspect_w}:{aspect_h}; "
+            f"both components must be positive."
+        )
+    vres = (hres * aspect_h) // aspect_w
+    return (hres, vres)
 
 
 def image_to_scanlines(

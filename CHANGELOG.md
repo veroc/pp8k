@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0] - 2026-04-30
+
+### Added
+- Slot-mode exposure: `Device.expose(image_path, slot=N, bw_filter=...)`
+  and `pp8k expose <device> <image> --slot N [--filter red|green|blue]`
+  expose against a pre-installed film table without uploading.
+  Aspect is read from the device via DFRCMD sub 5; presence of
+  `--filter` implies a single-pass B&W exposure.
+- 2-master FLM normalisation.  `pp8k.normalize_masters(table)` rewrites
+  Sets 0/2/4/6/7 from a single Master A and Sets 1/3/5 from
+  `ceil(Master A / 2)`; Set 8 from Master B and Set 9 from
+  `floor(Master B / 2)`.  `pp8k.validate_masters(table)` reports
+  inter-set inconsistencies.  Matches the authoring convention used
+  in 57/58 original Polaroid FLMs and prevents curve editors from
+  producing files that load different curves at different HRES.
+- Pluggable SCSI transport.  Two transports ship in the box and share
+  a common `Transport` interface:
+    - `SGIOTransport(path)` -- the existing Linux SG_IO ioctl path.
+      No behaviour change for `/dev/sg*` users (Ubuntu, T60 + PCMCIA,
+      anywhere with a Linux SCSI HBA).
+    - `S2pexecTransport(scsi_id)` -- shells out to scsi2pi's
+      `s2pexec` for Raspberry Pi systems with a PiSCSI HAT, where
+      there is no `/dev/sg*` node.  Requires the scsi2pi package
+      installed on the Pi.
+  `pp8k.open()` now accepts either form:
+  `pp8k.open("/dev/sg2")` -> SG_IO; `pp8k.open(4)` or
+  `pp8k.open("4")` -> s2pexec at SCSI ID 4.
+
+### Fixed
+- Frame dimensions for 6×7 film backs.  Every 6×7 FLM stores aspect
+  11:9 (per the RasterPlus95 driver docs §7.3 and confirmed against
+  all 6×7 tables in the ProPalette SDK), giving 4096×3351 at 4K and
+  8192×6702 at 8K.  The hardcoded table used 7:6 (4096×3510 /
+  8192×7020), which stretched every 6×7 exposure vertically by ~5%.
+
+### Changed
+- `FRAME_DIMENSIONS` table removed.  `get_frame_dimensions()` now
+  takes `(aspect_w, aspect_h, resolution)` and computes
+  `vres = hres * aspect_h / aspect_w` on the fly.  This matches
+  Polaroid's original programmable-resolution design (RasterPlus95
+  supplement §6) and lets slot-mode expose work without a local
+  camera-type table.  Minor 1-pixel rounding differences from the
+  old table for 35mm @ 8K and 4×5 @ 4K.
+- Public API: `Device.expose()` no longer requires `flm` positionally
+  -- use `flm=` or `slot=` keyword.
+- Public API: `pp8k.open(target=...)` -- the `device_path=` keyword
+  is renamed to `target=`.  Positional callers (`pp8k.open("/dev/sg2")`)
+  are unaffected.
+
+
 ## [0.3.1] - 2026-04-18
 
 ### Added
@@ -88,6 +138,7 @@ Initial release.
 - Progress callbacks emitting `ExposureProgress` (phase, channel, lines
   sent/total, buffer state, ETA).
 
+[0.4.0]: https://github.com/veroc/pp8k/releases/tag/v0.4.0
 [0.3.1]: https://github.com/veroc/pp8k/releases/tag/v0.3.1
 [0.3.0]: https://github.com/veroc/pp8k/releases/tag/v0.3.0
 [0.2.0]: https://github.com/veroc/pp8k/releases/tag/v0.2.0

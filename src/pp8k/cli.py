@@ -8,6 +8,7 @@ Device commands (require a SCSI device path, e.g. /dev/sg2, and root):
     pp8k reset <device>                     -- reset device to default state
     pp8k install <device> <FLM> --slot N    -- persist FLM to a device slot
     pp8k expose <device> <image> --film <FLM> [options]
+    pp8k expose <device> <image> --slot N [--filter C] [options]
 
 Offline FLM inspection (no device required):
 
@@ -256,6 +257,13 @@ def cmd_flm_validate(args):
             if res == 0:
                 warnings.append(f"Set {i}: resolution field is 0")
 
+    # 2-master authoring convention: 57/58 original Polaroid FLMs follow it.
+    # Inconsistencies indicate a hand-edited file that may load different
+    # curves at different HRES values, breaking calibration.  Reported as
+    # warnings (round-trip is unaffected).
+    for issue in pp8k.validate_masters(flm):
+        warnings.append(f"master pattern: {issue}")
+
     status = "OK" if not problems else "FAIL"
     print(f"{status}: {path.name}")
     print(f"  Name:       {flm.name!r}")
@@ -273,41 +281,69 @@ def cmd_flm_validate(args):
 
 
 def cmd_expose(args):
-    """Run an exposure."""
-    # Load the film table
-    flm = pp8k.load_flm(args.film)
-    print(f"Film table:   {flm.name} ({flm.camera_type_name})")
-    print(f"Type:         {'B&W' if flm.is_bw else 'Color'}"
-          + (f" [{flm.bw_filter_name} filter]" if flm.is_bw else ""))
+    """Run an exposure, using either an FLM file or a pre-installed slot."""
+    if (args.film is None) == (args.slot is None):
+        print("Error: pass exactly one of --film or --slot.", file=sys.stderr)
+        return 1
+
+    flm = None
+    aspect_w = aspect_h = None
+    is_bw = False
+
+    if args.film is not None:
+        # FLM mode
+        flm = pp8k.load_flm(args.film)
+        aspect_w, aspect_h = flm.aspect_w, flm.aspect_h
+        is_bw = flm.is_bw
+        print(f"Film table:   {flm.name} ({flm.camera_type_name})")
+        print(f"Type:         {'B&W' if flm.is_bw else 'Color'}"
+              + (f" [{flm.bw_filter_name} filter]" if flm.is_bw else ""))
+        if args.filter is not None:
+            print("Warning: --filter is ignored in FLM mode "
+                  "(B&W/channel come from the FLM header).")
+    # Slot mode resolves aspect after connecting; print what we know now.
     print(f"Resolution:   {args.res}")
     print(f"Transform:    {args.transform}")
     print(f"Background:   {args.background}")
     print(f"Image:        {args.image}")
 
     if args.dry_run:
-        # Validate everything without touching the device
+        if args.slot is not None:
+            # Without a device we can't query aspect; ask for FLM in dry-run.
+            print("Error: --dry-run requires --film (slot aspect needs the device).",
+                  file=sys.stderr)
+            return 1
         from pp8k.imaging import get_frame_dimensions, image_to_scanlines
-        width, height = get_frame_dimensions(flm.camera_type, args.res)
+        width, height = get_frame_dimensions(aspect_w, aspect_h, args.res)
         print(f"Frame size:   {width} x {height}")
         print("Converting image...", flush=True)
         t0 = time.monotonic()
         scanlines = image_to_scanlines(
-            args.image, width, height, args.transform, args.background, flm.is_bw,
+            args.image, width, height, args.transform, args.background, is_bw,
         )
         dt = time.monotonic() - t0
         print(f"Converted in {dt:.1f}s ({len(scanlines[0])} lines, {width} px wide)")
         print("DRY RUN -- no device commands sent.")
         return 0
 
-    # Connect and expose
     print(f"Connecting to {args.device}...")
     device = pp8k.open(args.device)
     try:
         print(f"Connected: {device.info.product} (fw {device.info.firmware})")
+        if args.slot is not None:
+            name = device.film_name(args.slot)
+            if name is None:
+                print(f"Error: slot {args.slot} is empty.", file=sys.stderr)
+                return 1
+            aspect = device.film_aspect(args.slot)
+            filter_note = f" [{args.filter} filter, 1 pass]" if args.filter else " [3-pass color]"
+            print(f"Slot {args.slot}:       {name}  {aspect[0]}:{aspect[1]}{filter_note}")
         print()
         device.expose(
             image_path=args.image,
             flm=flm,
+            slot=args.slot,
+            bw_filter=args.filter,
             resolution=args.res,
             transform=args.transform,
             background=args.background,
@@ -330,31 +366,31 @@ def main():
     p_info = subparsers.add_parser(
         "info", help="Print device identification",
     )
-    p_info.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+    p_info.add_argument("device", help="SCSI device: /dev/sg* path (SG_IO) or SCSI ID 0-7 (s2pexec/PiSCSI HAT)")
 
     # --- pp8k status ---
     p_status = subparsers.add_parser(
         "status", help="Print current device mode and state",
     )
-    p_status.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+    p_status.add_argument("device", help="SCSI device: /dev/sg* path (SG_IO) or SCSI ID 0-7 (s2pexec/PiSCSI HAT)")
 
     # --- pp8k slots ---
     p_slots = subparsers.add_parser(
         "slots", help="List films installed in device slots 0-19",
     )
-    p_slots.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+    p_slots.add_argument("device", help="SCSI device: /dev/sg* path (SG_IO) or SCSI ID 0-7 (s2pexec/PiSCSI HAT)")
 
     # --- pp8k reset ---
     p_reset = subparsers.add_parser(
         "reset", help="Reset device to machine-default state",
     )
-    p_reset.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+    p_reset.add_argument("device", help="SCSI device: /dev/sg* path (SG_IO) or SCSI ID 0-7 (s2pexec/PiSCSI HAT)")
 
     # --- pp8k install ---
     p_install = subparsers.add_parser(
         "install", help="Persist a .FLM film table to a device slot",
     )
-    p_install.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+    p_install.add_argument("device", help="SCSI device: /dev/sg* path (SG_IO) or SCSI ID 0-7 (s2pexec/PiSCSI HAT)")
     p_install.add_argument("file", help="Path to .FLM file")
     p_install.add_argument(
         "--slot", type=int, required=True,
@@ -389,11 +425,21 @@ def main():
     p_expose = subparsers.add_parser(
         "expose", help="Expose an image onto film",
     )
-    p_expose.add_argument("device", help="SCSI device path (e.g. /dev/sg2)")
+    p_expose.add_argument("device", help="SCSI device: /dev/sg* path (SG_IO) or SCSI ID 0-7 (s2pexec/PiSCSI HAT)")
     p_expose.add_argument("image", help="Path to source image file")
     p_expose.add_argument(
-        "--film", required=True,
-        help="Path to .FLM film table file (required)",
+        "--film", default=None,
+        help="Path to .FLM film table file (mutually exclusive with --slot)",
+    )
+    p_expose.add_argument(
+        "--slot", type=int, default=None,
+        help="Device slot 0-19 with a pre-installed film table "
+             "(mutually exclusive with --film)",
+    )
+    p_expose.add_argument(
+        "--filter", default=None, choices=["red", "green", "blue"],
+        help="Slot mode only: force a 1-pass B&W exposure on this channel. "
+             "Omit for 3-pass color. Ignored when --film is used.",
     )
     p_expose.add_argument(
         "--res", default="4k", choices=["4k", "8k"],

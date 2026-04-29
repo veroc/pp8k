@@ -23,7 +23,6 @@ from pathlib import Path
 
 from .constants import (
     BW_FILTER_TO_CHANNEL,
-    FRAME_DIMENSIONS,
     RED,
     GREEN,
     BLUE,
@@ -38,11 +37,21 @@ from .errors import (
     SCSIError,
 )
 from .exposure import run_exposure
-from .flm import FilmTable, LutChannel, LutSet, load_flm, save_flm, serialize_flm
+from .flm import (
+    FilmTable,
+    LutChannel,
+    LutSet,
+    load_flm,
+    normalize_masters,
+    save_flm,
+    serialize_flm,
+    validate_masters,
+)
 from .imaging import get_frame_dimensions, image_to_scanlines
 from .mock import MockDevice
 from .models import DeviceInfo, ExposureProgress, ModeState
 from .scsi import ScsiDevice
+from .transport import S2pexecTransport, SGIOTransport
 
 
 __all__ = [
@@ -52,6 +61,8 @@ __all__ = [
     "load_flm",
     "save_flm",
     "serialize_flm",
+    "normalize_masters",
+    "validate_masters",
     # Classes
     "Device",
     "FilmTable",
@@ -73,6 +84,25 @@ __all__ = [
     "GREEN",
     "BLUE",
 ]
+
+
+_BW_FILTER_NAMES = {"red": RED, "green": GREEN, "blue": BLUE}
+
+
+def _resolve_bw_filter(value):
+    """Resolve a bw_filter argument to a channel constant or None."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        key = value.lower()
+        if key not in _BW_FILTER_NAMES:
+            raise ValueError(
+                f"bw_filter must be 'red', 'green', 'blue', or None; got {value!r}"
+            )
+        return _BW_FILTER_NAMES[key]
+    if value in (RED, GREEN, BLUE):
+        return value
+    raise ValueError(f"bw_filter must be a color name or channel constant; got {value!r}")
 
 
 class Device:
@@ -158,7 +188,9 @@ class Device:
     def expose(
         self,
         image_path,
-        flm,
+        flm=None,
+        slot=None,
+        bw_filter=None,
         resolution="4k",
         transform="fit",
         background="black",
@@ -167,16 +199,24 @@ class Device:
     ):
         """Run a complete exposure: image conversion, upload, and print.
 
-        This is a blocking call that runs the full exposure workflow.
-        For async operation, run it in a background thread and use the
-        abort event to cancel.
-
-        The B&W/color mode and filter channel are determined automatically
-        from the FLM film table header -- no need to specify them.
+        Two modes:
+            FLM mode (`flm=...`): upload the FLM to the scratch slot and
+                expose.  B&W/color and filter channel are read from the
+                FLM header.
+            Slot mode (`slot=N`): expose using a film table already
+                installed on the device.  Aspect is read from the slot
+                (DFRCMD sub 5).  Pass `bw_filter` to force a single-pass
+                B&W exposure; omit it for a 3-pass color exposure.
 
         Args:
             image_path: Path to source image (JPEG, PNG, TIFF, etc.).
-            flm: Parsed film table (from pp8k.load_flm()).
+            flm: Parsed film table (from pp8k.load_flm()).  Mutually
+                 exclusive with `slot`.
+            slot: Device slot number (0-19) of a pre-installed film
+                  table.  Mutually exclusive with `flm`.
+            bw_filter: Only used in slot mode.  "red"/"green"/"blue" or
+                       RED/GREEN/BLUE constant -> single-pass B&W on that
+                       channel.  None -> 3-pass color exposure.
             resolution: "4k" or "8k" (default "4k").
             transform: "fit" (letterbox, no crop) or "fill" (crop to fill).
             background: "black" or "white" (letterbox bar color for fit mode).
@@ -184,32 +224,43 @@ class Device:
             abort: Optional threading.Event to request a clean abort.
 
         Raises:
-            ValueError: If resolution/camera type combination is unsupported.
+            ValueError: If neither or both of flm/slot are given, or if
+                        the slot is empty, or resolution/aspect are bad.
             DeviceError: On SCSI communication failure.
             ExposureAbortedError: If abort was requested.
         """
-        # Look up frame dimensions from the FLM's camera type + resolution
-        width, height = get_frame_dimensions(flm.camera_type, resolution)
+        if (flm is None) == (slot is None):
+            raise ValueError("Pass exactly one of `flm` or `slot`")
 
-        # Determine B&W mode from the FLM header
-        if flm.is_bw:
-            bw_channel = BW_FILTER_TO_CHANNEL.get(flm.bw_filter)
+        if flm is not None:
+            aspect_w, aspect_h = flm.aspect_w, flm.aspect_h
+            is_bw = flm.is_bw
+            bw_channel = BW_FILTER_TO_CHANNEL.get(flm.bw_filter) if is_bw else None
+            film_slot = SCRATCH_SLOT
         else:
-            bw_channel = None
+            if not 0 <= slot <= 19:
+                raise ValueError(f"slot must be 0-19, got {slot}")
+            aspect = self._dev.film_aspect(slot)
+            if aspect is None:
+                raise ValueError(f"Slot {slot} is empty")
+            aspect_w, aspect_h = aspect
+            bw_channel = _resolve_bw_filter(bw_filter)
+            is_bw = bw_channel is not None
+            film_slot = slot
 
-        # Convert the image to scanlines at the target frame dimensions
+        width, height = get_frame_dimensions(aspect_w, aspect_h, resolution)
+
         scanlines = image_to_scanlines(
-            image_path, width, height, transform, background, flm.is_bw,
+            image_path, width, height, transform, background, is_bw,
         )
 
-        # Upload the film table to our scratch slot on the device
-        self._dev.upload_film_table(SCRATCH_SLOT, flm.encrypted_data)
+        if flm is not None:
+            self._dev.upload_film_table(SCRATCH_SLOT, flm.encrypted_data)
 
-        # Run the SCSI exposure workflow
         run_exposure(
             device=self._dev,
             scanlines=scanlines,
-            film_slot=SCRATCH_SLOT,
+            film_slot=film_slot,
             bw_channel=bw_channel,
             on_progress=on_progress,
             abort=abort,
@@ -232,15 +283,21 @@ class Device:
         )
 
 
-def open(device_path="/dev/sg2"):
+def open(target="/dev/sg2"):
     """Connect to a ProPalette 8000 via SCSI.
 
     Opens the device, sends INQUIRY to verify it's a Digital Palette,
     and checks TEST UNIT READY.
 
     Args:
-        device_path: Path to the SCSI Generic device node (e.g. "/dev/sg2").
-                     Requires root or appropriate udev permissions.
+        target: How to reach the device.  Two forms are accepted:
+            - A SCSI Generic device path like "/dev/sg2" -- uses the
+              SG_IO ioctl directly.  Works on any Linux host with a
+              SCSI HBA (Ubuntu, T60 + PCMCIA, etc.).
+            - An integer SCSI ID (or its string form, e.g. 4 or "4")
+              -- uses scsi2pi's `s2pexec` to drive a PiSCSI HAT on a
+              Raspberry Pi.  Requires the scsi2pi package installed.
+            Either form requires root (or appropriate permissions).
 
     Returns:
         A connected Device instance.
@@ -250,7 +307,8 @@ def open(device_path="/dev/sg2"):
         DeviceNotReadyError: If the device is not ready.
         OSError: If the device cannot be opened.
     """
-    dev = ScsiDevice(device_path)
+    transport = _build_transport(target)
+    dev = ScsiDevice(transport)
     dev.open()
 
     try:
@@ -258,19 +316,32 @@ def open(device_path="/dev/sg2"):
 
         if info.identification != "DP2SCSI":
             raise DeviceNotFoundError(
-                f"Not a Digital Palette at {device_path} "
+                f"Not a Digital Palette at {target} "
                 f"(got identification '{info.identification}')"
             )
 
         if not dev.test_unit_ready():
             raise DeviceNotReadyError(
-                f"Device at {device_path} is not ready (TEST UNIT READY failed)"
+                f"Device at {target} is not ready (TEST UNIT READY failed)"
             )
     except Exception:
         dev.close()
         raise
 
     return Device(dev, info)
+
+
+def _build_transport(target):
+    """Pick the right Transport for a `target` argument to open().
+
+    Integer or all-digit string -> S2pexecTransport (PiSCSI HAT path).
+    Anything else (path string, pathlib.Path) -> SGIOTransport.
+    """
+    if isinstance(target, int):
+        return S2pexecTransport(scsi_id=target)
+    if isinstance(target, str) and target.isdigit():
+        return S2pexecTransport(scsi_id=int(target))
+    return SGIOTransport(str(target))
 
 
 def mock():

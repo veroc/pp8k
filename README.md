@@ -61,6 +61,10 @@ sudo pp8k expose /dev/sg2 photo.tiff --film PLUSXPAN.FLM
 # 8K resolution, fill frame (crop to fit)
 sudo pp8k expose /dev/sg2 photo.tiff --film EKTA100.FLM --res 8k --transform fill
 
+# Use a pre-installed slot instead of uploading (aspect read from device)
+sudo pp8k expose /dev/sg2 photo.tiff --slot 3                     # 3-pass color
+sudo pp8k expose /dev/sg2 photo.tiff --slot 3 --filter green      # 1-pass B&W
+
 # Validate everything without touching the device
 sudo pp8k expose /dev/sg2 photo.tiff --film PLUSXPAN.FLM --dry-run
 ```

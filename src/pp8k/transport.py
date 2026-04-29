@@ -365,11 +365,31 @@ class S2pexecTransport(Transport):
         self.binary = binary
 
     def open(self):
-        if not os.path.isabs(self.binary) and shutil.which(self.binary) is None:
-            raise FileNotFoundError(
-                f"s2pexec binary {self.binary!r} not found on PATH. "
-                "Install scsi2pi or pass the absolute path."
-            )
+        self.binary = self._resolve_binary(self.binary)
+
+    @staticmethod
+    def _resolve_binary(binary):
+        """Find the scsi2pi binary regardless of PATH quirks.
+
+        Order: absolute path as-given, then PATH lookup, then known
+        scsi2pi install locations.  This makes pp8k work under sudo
+        even when /opt/scsi2pi/bin is not in secure_path.
+        """
+        if os.path.isabs(binary):
+            if not (os.path.isfile(binary) and os.access(binary, os.X_OK)):
+                raise FileNotFoundError(f"{binary} not found or not executable")
+            return binary
+        found = shutil.which(binary)
+        if found:
+            return found
+        for prefix in ("/opt/scsi2pi/bin", "/usr/local/bin", "/usr/bin"):
+            candidate = os.path.join(prefix, binary)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+        raise FileNotFoundError(
+            f"s2pexec binary {binary!r} not found on PATH or in "
+            "/opt/scsi2pi/bin.  Install scsi2pi or pass the absolute path."
+        )
 
     def close(self):
         pass

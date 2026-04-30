@@ -62,7 +62,7 @@ CAMERA_TYPES = {
 # Resolution-tier width mapping
 #
 # The PP8K is a programmable-resolution device: MODE SELECT accepts any
-# (hres, vres) up to the CRT's 8192 x 7020 addressable area, and the
+# (hres, vres) up to the CRT's 8192 x 6710 addressable area, and the
 # actual frame height is derived from the film's aspect ratio at run
 # time (see imaging.get_frame_dimensions).  The "4k"/"8k" labels are a
 # driver convention for convenient CLI input.
@@ -90,7 +90,7 @@ SCRATCH_SLOT = 19
 HARDWARE_MAX_DISPLAY = 262144   # 2^18, CRT DAC limit
 HARDWARE_MAX_STORED = 65535     # uint16 max in FLM LUT entries
 HARDWARE_MAX_HRES = 8192        # maximum horizontal resolution
-HARDWARE_MAX_VRES = 7020        # maximum vertical resolution (6x7 back)
+HARDWARE_MAX_VRES = 6710        # maximum vertical resolution (verified fw 568)
 HARDWARE_BUFFER_KB = 4096       # standard device buffer size
 
 # SCSI sense keys relevant to PP8K operation

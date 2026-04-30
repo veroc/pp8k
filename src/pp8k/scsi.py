@@ -86,7 +86,7 @@ class ScsiDevice:
             cbal_rgb=raw["cbal_rgb"],
             etime_rgb=raw["etime_rgb"],
             camera_back=raw["camera_back"],
-            frame_counter=raw["frame_counter"],
+            lifetime_exposures=raw["lifetime_exposures"],
         )
 
     def mode_select(self, film, hres, vres, servo=4):

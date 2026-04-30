@@ -53,9 +53,9 @@ def inquiry(t):
         Bytes 50-51:  Max vertical resolution (big-endian uint16)
     """
     data = t.execute( bytes([OP_INQUIRY, 0, 0, 0, 63, 0]), data_in_len=63)
-    ident = data[8:15].decode("ascii", errors="replace").strip()
-    product = data[16:32].decode("ascii", errors="replace").strip()
-    revision = data[32:36].decode("ascii", errors="replace").strip()
+    ident = data[8:15].decode("ascii", errors="replace").rstrip("\x00 ").strip()
+    product = data[16:32].decode("ascii", errors="replace").rstrip("\x00 ").strip()
+    revision = data[32:36].decode("ascii", errors="replace").rstrip("\x00 ").strip()
     buffer_kb = struct.unpack_from(">H", data, 40)[0]
 
     # Extract firmware version number from revision string
@@ -109,26 +109,30 @@ def mode_sense(t):
 
     Field offsets in the 61-byte response:
         4-5:   Buffer size (KB, big-endian)
-        6:     Film slot number
+        8:     Film slot number (currently selected via MODE SELECT)
         10-11: Horizontal resolution (big-endian)
         17-18: Vertical resolution (big-endian)
         22-24: Luminance R, G, B (0-200 each)
         26-28: Color balance R, G, B
         30-32: Exposure time R, G, B
         46-49: Camera back identifier (ASCII)
-        58-59: Frame counter (big-endian)
+        58-59: Lifetime exposure counter (big-endian, unit-lifetime, not session)
+
+    Byte 6 is a vendor status byte (typically non-zero on a powered unit)
+    and is not the film slot -- earlier driver revisions parsed it that
+    way by mistake.
     """
     data = t.execute( bytes([OP_MODE_SENSE, 0, 0, 0, 61, 0]), data_in_len=61)
     return {
         "buffer_kb": struct.unpack_from(">H", data, 4)[0],
-        "film_number": data[6],
+        "film_number": data[8],
         "hres": struct.unpack_from(">H", data, 10)[0],
         "vres": struct.unpack_from(">H", data, 17)[0],
         "lum_rgb": (data[22], data[23], data[24]),
         "cbal_rgb": (data[26], data[27], data[28]),
         "etime_rgb": (data[30], data[31], data[32]),
         "camera_back": data[46:50].decode("ascii", errors="replace").strip(),
-        "frame_counter": struct.unpack_from(">H", data, 58)[0],
+        "lifetime_exposures": struct.unpack_from(">H", data, 58)[0],
     }
 
 

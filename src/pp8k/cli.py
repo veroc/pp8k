@@ -82,7 +82,7 @@ def cmd_status(args):
         print(f"Color bal:    R={mode.cbal_rgb[0]} G={mode.cbal_rgb[1]} B={mode.cbal_rgb[2]}")
         print(f"Exp. time:    R={mode.etime_rgb[0]} G={mode.etime_rgb[1]} B={mode.etime_rgb[2]}")
         print(f"Camera back:  {mode.camera_back}")
-        print(f"Frame count:  {mode.frame_counter}")
+        print(f"Lifetime exp: {mode.lifetime_exposures}")
         print(f"Buffer:       {mode.buffer_kb} KB")
     finally:
         device.close()

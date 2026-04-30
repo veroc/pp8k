@@ -31,8 +31,10 @@ class ModeState(NamedTuple):
     what resolution is set, and the exposure parameters (luminance,
     color balance, exposure time per channel).
 
-    Note: frame_counter and camera_back are read from the device's LCD
-    state and may not update in real time during SCSI operation.
+    `lifetime_exposures` is a unit-lifetime counter -- it counts every
+    exposure the machine has ever made and is not reset by power cycles
+    or session boundaries.  A pristine unit reads 0; a well-used one
+    can read tens of thousands.
     """
     buffer_kb: int                      # buffer size in KB
     film_number: int                    # active film slot (0-19)
@@ -42,7 +44,7 @@ class ModeState(NamedTuple):
     cbal_rgb: tuple                     # color balance per channel
     etime_rgb: tuple                    # exposure time per channel
     camera_back: str                    # camera back identifier (e.g. "35mm")
-    frame_counter: int                  # exposure count (LCD-only, may lag)
+    lifetime_exposures: int             # total exposures ever made by this unit
 
 
 class BufferStatus(NamedTuple):

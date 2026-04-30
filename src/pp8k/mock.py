@@ -47,13 +47,12 @@ class MockDevice:
             "cbal_rgb": (3, 3, 3),
             "etime_rgb": (100, 100, 100),
             "camera_back": "35mm",
-            "frame_counter": 0,
         }
         self._exposure_active = False
         self._buffer_free_kb = 4096
         self._current_line = 0
         self._exposure_state = 0
-        self._frame_counter = 0
+        self._lifetime_exposures = 0
         self._last_drain = time.monotonic()
 
     def open(self):
@@ -70,7 +69,7 @@ class MockDevice:
             revision=" 568",
             buffer_kb=4096,
             hres_max=8192,
-            vres_max=7020,
+            vres_max=6710,
         )
 
     def test_unit_ready(self):
@@ -89,7 +88,7 @@ class MockDevice:
             cbal_rgb=self._mode["cbal_rgb"],
             etime_rgb=self._mode["etime_rgb"],
             camera_back=self._mode["camera_back"],
-            frame_counter=self._frame_counter,
+            lifetime_exposures=self._lifetime_exposures,
         )
 
     def mode_select(self, film, hres, vres, servo=SERVO_FULL):
@@ -120,7 +119,7 @@ class MockDevice:
     def terminate_exposure(self):
         self._exposure_active = False
         self._exposure_state = 0
-        self._frame_counter += 1
+        self._lifetime_exposures += 1
 
     def stop_print(self):
         self._exposure_active = False

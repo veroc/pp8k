@@ -332,9 +332,14 @@ def serialize_flm(table):
 
     # --- File header ---
 
-    # Film name (bytes 0-23, ASCII, null-padded)
-    name_bytes = table.name.encode("ascii", errors="replace")[:24]
+    # Film name (bytes 0-23, ASCII, null-terminated).  The firmware reads
+    # this as a C string, so byte 23 must be 0 -- otherwise the read
+    # overruns into camera_type/flags/aspect (bytes 24-27) and corrupts
+    # later metadata reads on the device.  Cap the payload at 23 bytes
+    # to guarantee at least one trailing null.
+    name_bytes = table.name.encode("ascii", errors="replace")[:23]
     buf[0:len(name_bytes)] = name_bytes
+    buf[23] = 0
 
     # Camera type (byte 24)
     buf[24] = table.camera_type & 0xFF
@@ -357,7 +362,9 @@ def serialize_flm(table):
         # Pad with zeros if raw_extended is short (shouldn't happen for loaded tables)
         buf[28:28 + len(table.raw_extended)] = table.raw_extended
 
-    # Internal name (bytes 32-39, overwrites into raw_extended area)
+    # Internal name (bytes 32-39, overwrites into raw_extended area).
+    # 33/58 original Polaroid FLMs fill all 8 bytes with no terminator
+    # and the firmware handles them correctly, so no cap is enforced.
     iname = table.internal_name.encode("ascii", errors="replace")[:8]
     buf[32:32 + len(iname)] = iname
     # Null-pad remaining bytes in the 8-byte internal name slot

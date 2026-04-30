@@ -8,7 +8,7 @@ Exposure workflow:
     1. MODE SELECT     -- configure film slot, resolution, servo mode
     2. SET_COLOR_TAB   -- load identity gamma LUTs (3 channels)
     3. START_EXPOSURE   -- trigger CRT calibration cycle
-    4. Wait 15-25s     -- poll CURRENT_STATUS until calibration completes
+    4. Wait 30-45s     -- poll CURRENT_STATUS until calibration completes
     5. Send scanlines  -- 50-line bursts per channel, paced by buffer status
     6. TERMINATE_EXPOSURE -- finalize, advance film
 
@@ -49,11 +49,14 @@ BURST_SIZE = 50
 MIN_FREE_KB = 500
 
 # Maximum seconds to wait for CRT calibration after START_EXPOSURE.
-CALIBRATION_WAIT_S = 30
+# Empirically, fw 568 takes >=30s and the polled exposure_state flag
+# rarely transitions away from 0; the firmware accepts scanlines based
+# on buffer state regardless, so this is mostly a safety upper bound.
+CALIBRATION_WAIT_S = 45
 
 # Minimum seconds to wait before checking if calibration is complete.
 # The CRT needs at least this long to stabilize.
-CALIBRATION_MIN_S = 15
+CALIBRATION_MIN_S = 30
 
 
 # ---------------------------------------------------------------------------

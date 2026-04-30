@@ -194,6 +194,7 @@ class Device:
         resolution="4k",
         transform="fit",
         background="black",
+        rotation=0,
         on_progress=None,
         abort=None,
     ):
@@ -220,6 +221,7 @@ class Device:
             resolution: "4k" or "8k" (default "4k").
             transform: "fit" (letterbox, no crop) or "fill" (crop to fill).
             background: "black" or "white" (letterbox bar color for fit mode).
+            rotation: Clockwise rotation in degrees (0, 90, 180, or 270).
             on_progress: Optional callback receiving ExposureProgress updates.
             abort: Optional threading.Event to request a clean abort.
 
@@ -251,7 +253,7 @@ class Device:
         width, height = get_frame_dimensions(aspect_w, aspect_h, resolution)
 
         scanlines = image_to_scanlines(
-            image_path, width, height, transform, background, is_bw,
+            image_path, width, height, transform, background, is_bw, rotation,
         )
 
         if flm is not None:

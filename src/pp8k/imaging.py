@@ -63,12 +63,13 @@ def image_to_scanlines(
     transform="fit",
     background="black",
     is_bw=False,
+    rotation=0,
 ):
     """Convert an image file to device-ready scanlines.
 
-    The image is loaded, EXIF-rotated, and scaled to fit or fill the
-    target frame dimensions.  The result is split into three lists of
-    scanlines (one per color channel).
+    The image is loaded, EXIF-rotated, optionally rotated by a multiple
+    of 90 degrees, and scaled to fit or fill the target frame dimensions.
+    The result is split into three lists of scanlines (one per channel).
 
     Transform modes:
         "fit"  -- Scale the image to fit entirely within the frame.
@@ -85,14 +86,28 @@ def image_to_scanlines(
         transform: "fit" or "fill".
         background: "black" or "white" (for letterbox bars in fit mode).
         is_bw: If True, convert to grayscale (identical data on all channels).
+        rotation: Clockwise rotation in degrees: 0, 90, 180, or 270.
+                  Applied after EXIF transpose, before fit/fill scaling.
 
     Returns:
         (red_lines, green_lines, blue_lines) -- each a list of `height`
         bytes objects, each `width` bytes long.
     """
+    if rotation not in (0, 90, 180, 270):
+        raise ValueError(f"rotation must be 0, 90, 180, or 270; got {rotation!r}")
+
     with Image.open(image_path) as img:
         # Apply EXIF orientation (camera rotation metadata)
         img = ImageOps.exif_transpose(img) or img
+
+        # Apply explicit rotation (clockwise).  PIL's ROTATE_* are CCW,
+        # so 90° clockwise == ROTATE_270.
+        if rotation == 90:
+            img = img.transpose(Image.ROTATE_270)
+        elif rotation == 180:
+            img = img.transpose(Image.ROTATE_180)
+        elif rotation == 270:
+            img = img.transpose(Image.ROTATE_90)
 
         # Ensure RGB mode for channel splitting
         if img.mode not in ("RGB", "L"):

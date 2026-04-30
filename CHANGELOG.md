@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.0] - 2026-04-30
+
+### Added
+- `image_to_scanlines()` and `Device.expose()` accept a new `rotation`
+  argument: 0, 90, 180, or 270 degrees clockwise.  Applied after EXIF
+  transpose, before fit/fill scaling.  Default 0 (no rotation), so
+  existing callers are unaffected.
+- `pp8k expose` CLI gains a `--rotation {0,90,180,270}` flag.
+
+### Changed
+- Backward-compatible signature extension; no breaking changes.
+
+
 ## [0.4.1] - 2026-04-30
 
 ### Fixed

@@ -319,7 +319,8 @@ def cmd_expose(args):
         print("Converting image...", flush=True)
         t0 = time.monotonic()
         scanlines = image_to_scanlines(
-            args.image, width, height, args.transform, args.background, is_bw,
+            args.image, width, height, args.transform, args.background,
+            is_bw, args.rotation,
         )
         dt = time.monotonic() - t0
         print(f"Converted in {dt:.1f}s ({len(scanlines[0])} lines, {width} px wide)")
@@ -347,6 +348,7 @@ def cmd_expose(args):
             resolution=args.res,
             transform=args.transform,
             background=args.background,
+            rotation=args.rotation,
             on_progress=_progress_printer,
         )
     finally:
@@ -452,6 +454,10 @@ def main():
     p_expose.add_argument(
         "--background", default="black", choices=["black", "white"],
         help="Letterbox bar color for fit mode (default: black)",
+    )
+    p_expose.add_argument(
+        "--rotation", type=int, default=0, choices=[0, 90, 180, 270],
+        help="Clockwise rotation in degrees (default: 0)",
     )
     p_expose.add_argument(
         "--dry-run", action="store_true",

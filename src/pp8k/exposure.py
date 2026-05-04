@@ -97,6 +97,8 @@ def run_exposure(
     on_progress=None,
     abort=None,
     calibration_control=CAL_NORMAL,
+    ltdrk=3,
+    cbal_rgb=(3, 3, 3),
 ):
     """Run a complete exposure workflow (blocking).
 
@@ -120,6 +122,11 @@ def run_exposure(
                      verification), 3=CAL_NO_CAL (skip calibration —
                      short fixed settle delay instead of the 30-45s
                      poll loop).
+        ltdrk: Lighten/darken threshold, 0..6 (default 3 = neutral).
+                     ValueError on out-of-range, raised before any
+                     SCSI traffic.
+        cbal_rgb: Per-channel colour balance, each 0..6 (default
+                     (3, 3, 3) = neutral).  Same validation behaviour.
     """
     red_lines, green_lines, blue_lines = scanlines
     height = len(red_lines)
@@ -166,6 +173,7 @@ def run_exposure(
         device.mode_select(
             film=film_slot, hres=width, vres=height,
             calibration_control=calibration_control,
+            ltdrk=ltdrk, cbal_rgb=cbal_rgb,
         )
         _check_abort(abort, device)
 

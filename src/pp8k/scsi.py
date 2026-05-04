@@ -89,11 +89,15 @@ class ScsiDevice:
             lifetime_exposures=raw["lifetime_exposures"],
         )
 
-    def mode_select(self, film, hres, vres, servo=4, calibration_control=0):
+    def mode_select(
+        self, film, hres, vres, servo=4, calibration_control=0,
+        ltdrk=3, cbal_rgb=(3, 3, 3),
+    ):
         """MODE SELECT -- configure device for exposure."""
         commands.mode_select(
             self._t, film=film, hres=hres, vres=vres, servo=servo,
             calibration_control=calibration_control,
+            ltdrk=ltdrk, cbal_rgb=cbal_rgb,
         )
 
     def set_color_tab(self, channel, data):

@@ -54,6 +54,7 @@ class MockDevice:
         self._exposure_state = 0
         self._lifetime_exposures = 0
         self._calibration_control = 0
+        self._ltdrk = 3
         self._last_drain = time.monotonic()
 
     def open(self):
@@ -92,15 +93,24 @@ class MockDevice:
             lifetime_exposures=self._lifetime_exposures,
         )
 
-    def mode_select(self, film, hres, vres, servo=SERVO_FULL, calibration_control=0):
+    def mode_select(
+        self, film, hres, vres, servo=SERVO_FULL, calibration_control=0,
+        ltdrk=3, cbal_rgb=(3, 3, 3),
+    ):
         if calibration_control not in (0, 1, 3):
             raise ValueError(
                 f"calibration_control must be 0, 1, or 3; got {calibration_control}"
             )
+        if not 0 <= ltdrk <= 6:
+            raise ValueError(f"ltdrk must be 0..6; got {ltdrk}")
+        if len(cbal_rgb) != 3 or not all(0 <= v <= 6 for v in cbal_rgb):
+            raise ValueError(f"cbal_rgb must be a 3-tuple of 0..6; got {cbal_rgb!r}")
         self._mode["film_number"] = film
         self._mode["hres"] = hres
         self._mode["vres"] = vres
+        self._mode["cbal_rgb"] = tuple(cbal_rgb)
         self._calibration_control = calibration_control
+        self._ltdrk = ltdrk
 
     def set_color_tab(self, channel, data):
         self._color_tabs[channel] = bytes(data)

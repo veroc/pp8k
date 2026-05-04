@@ -143,6 +143,8 @@ def mode_select(
     vres=2730,
     servo=SERVO_FULL,
     calibration_control=CAL_NORMAL,
+    ltdrk=3,
+    cbal_rgb=(3, 3, 3),
 ):
     """MODE SELECT (0x15) -- configure device for exposure.
 
@@ -171,6 +173,14 @@ def mode_select(
             hardwired autoluma — pair with a shorter or skipped poll in
             run_exposure).  Value 2 is reserved by Polaroid; sending it
             raises ValueError.
+        ltdrk: Lighten/darken threshold, 0..6 (SDK LIGHT_DARK_LEGAL).
+            Default 3 (neutral).  Out-of-range raises ValueError before
+            the SCSI roundtrip — the firmware would reject ltdrk>=7
+            with ASC 0x2553 ("illegal parameter").
+        cbal_rgb: 3-tuple of per-channel colour balance, each 0..6 (SDK
+            COLOR_BALANCE_LEGAL).  Default (3, 3, 3) (neutral).  Out-of-
+            range raises ValueError; the firmware reports field-specific
+            ASC 0x254e for green.
     """
     if calibration_control not in (0, 1, 3):
         if calibration_control == 2:
@@ -181,6 +191,13 @@ def mode_select(
         raise ValueError(
             f"calibration_control must be 0, 1, or 3; got {calibration_control}"
         )
+    if not 0 <= ltdrk <= 6:
+        raise ValueError(f"ltdrk must be 0..6; got {ltdrk}")
+    if len(cbal_rgb) != 3:
+        raise ValueError(f"cbal_rgb must be a 3-tuple; got {cbal_rgb!r}")
+    for name, value in zip(("R", "G", "B"), cbal_rgb):
+        if not 0 <= value <= 6:
+            raise ValueError(f"cbal_{name} must be 0..6; got {value}")
     buf = bytearray(43)
     buf[3] = 39                            # descriptor length
     buf[4] = film                          # film table slot
@@ -193,13 +210,13 @@ def mode_select(
     buf[18] = 100                          # LUM_RED
     buf[19] = 100                          # LUM_GREEN
     buf[20] = 100                          # LUM_BLUE
-    buf[22] = 3                            # CBAL_RED
-    buf[23] = 3                            # CBAL_GREEN
-    buf[24] = 3                            # CBAL_BLUE
+    buf[22] = cbal_rgb[0]                  # CBAL_RED
+    buf[23] = cbal_rgb[1]                  # CBAL_GREEN
+    buf[24] = cbal_rgb[2]                  # CBAL_BLUE
     buf[26] = 100                          # ETIME_RED
     buf[27] = 100                          # ETIME_GREEN
     buf[28] = 100                          # ETIME_BLUE
-    buf[30] = 3                            # LTDRK
+    buf[30] = ltdrk                        # LTDRK (0..6)
     buf[31] = (vres >> 8) & 0xFF           # IMAGE_HEIGHT MSB
     buf[32] = vres & 0xFF                  # IMAGE_HEIGHT LSB
     buf[33] = servo                        # Servo mode

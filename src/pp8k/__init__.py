@@ -201,6 +201,8 @@ class Device:
         on_progress=None,
         abort=None,
         calibration_control=CAL_NORMAL,
+        ltdrk=3,
+        cbal_rgb=(3, 3, 3),
     ):
         """Run a complete exposure: image conversion, upload, and print.
 
@@ -234,6 +236,10 @@ class Device:
                        firmware uses hardwired autoluma; ~30s faster but
                        only safe when conditions match a recent normal
                        calibration).  Value 2 is reserved by Polaroid.
+            ltdrk: Lighten/darken threshold, 0..6 (default 3 = neutral).
+                       Validated client-side.
+            cbal_rgb: Per-channel colour balance, each 0..6 (default
+                       (3, 3, 3) = neutral).  Validated client-side.
 
         Raises:
             ValueError: If neither or both of flm/slot are given, or if
@@ -277,6 +283,8 @@ class Device:
             on_progress=on_progress,
             abort=abort,
             calibration_control=calibration_control,
+            ltdrk=ltdrk,
+            cbal_rgb=cbal_rgb,
         )
 
     def close(self):

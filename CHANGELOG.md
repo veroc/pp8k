@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Added
+- `calibration_control` kwarg on `commands.mode_select`,
+  `ScsiDevice.mode_select`, `MockDevice.mode_select`, `run_exposure`, and
+  `Device.expose`.  Maps to MODE SELECT byte 36 (`CALIBRATION_CONTROL`,
+  per SDK header `tkscsi/dpalette.h:212-216`).  When `CAL_NO_CAL` (3)
+  is selected, the firmware skips its per-frame CRT calibration cycle
+  (~30s on fw 568) and uses hardwired autoluma; `run_exposure` then
+  replaces the 30-45s poll loop with a short fixed settle delay
+  (`CAL_NO_CAL_SETTLE_S = 2`).  Default `CAL_NORMAL` (0) preserves
+  existing behaviour.
+- New constants exported from the package root: `CAL_NORMAL` (0),
+  `CAL_NO_CHECK` (1), `CAL_NO_CAL` (3).  Value 2 (`SE_NO_CAL_USE_OLD`)
+  is documented as "RESERVED by Polaroid" in the SDK and is rejected
+  with `ValueError` if passed; out-of-range values get a clearer
+  message than the previous silent firmware rejection.
+
+### Changed
+- MODE SELECT parameter block byte 35 (`BUFFER_USAGE`) is now written
+  explicitly as `0` (`SE_BUF_AS_RECVD`) with a rationale comment.
+  Behaviour unchanged -- the bytearray was already zero-initialised,
+  but the assignment documents the design choice in code:
+  `SE_BUF_FULL_COLOR` and `SE_BUF_FULL_IMAGE` require buffering an
+  entire colour plane (~11 MB at 4K), which doesn't fit in the
+  device's 2456 KB buffer at production HRES, and `SE_BUF_OFF` is
+  marked test-only in the SDK.
+
+
 ## [0.6.0] - 2026-04-30
 
 ### Fixed

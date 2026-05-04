@@ -81,6 +81,14 @@ RESOLUTION_HRES = {
 # MODE SELECT servo mode: FULL (4) = full CRT deflection calibration
 SERVO_FULL = 4
 
+# MODE SELECT calibration control (byte 36).  Per SDK header
+# tkscsi/dpalette.h:212-216 and dpalette.doc:2789.  Value 2
+# (SE_NO_CAL_USE_OLD) is documented as "RESERVED by Polaroid" and is
+# deliberately omitted here.
+CAL_NORMAL = 0      # Auto-luma with reasonableness check (default)
+CAL_NO_CHECK = 1    # Auto-luma without verification
+CAL_NO_CAL = 3      # Skip per-frame CRT calibration; use hardwired autoluma
+
 # Internal slot used for film table uploads. Slot 19 is the last of 20
 # available slots (0-19) and least likely to conflict with user tables
 # loaded via the device's front panel.

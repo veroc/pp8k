@@ -23,6 +23,9 @@ from pathlib import Path
 
 from .constants import (
     BW_FILTER_TO_CHANNEL,
+    CAL_NO_CAL,
+    CAL_NO_CHECK,
+    CAL_NORMAL,
     RED,
     GREEN,
     BLUE,
@@ -197,6 +200,7 @@ class Device:
         rotation=0,
         on_progress=None,
         abort=None,
+        calibration_control=CAL_NORMAL,
     ):
         """Run a complete exposure: image conversion, upload, and print.
 
@@ -224,6 +228,12 @@ class Device:
             rotation: Clockwise rotation in degrees (0, 90, 180, or 270).
             on_progress: Optional callback receiving ExposureProgress updates.
             abort: Optional threading.Event to request a clean abort.
+            calibration_control: 0=CAL_NORMAL (default; full per-frame CRT
+                       calibration cycle, ~30s), 1=CAL_NO_CHECK (calibrate
+                       without verification), 3=CAL_NO_CAL (skip the cycle —
+                       firmware uses hardwired autoluma; ~30s faster but
+                       only safe when conditions match a recent normal
+                       calibration).  Value 2 is reserved by Polaroid.
 
         Raises:
             ValueError: If neither or both of flm/slot are given, or if
@@ -266,6 +276,7 @@ class Device:
             bw_channel=bw_channel,
             on_progress=on_progress,
             abort=abort,
+            calibration_control=calibration_control,
         )
 
     def close(self):

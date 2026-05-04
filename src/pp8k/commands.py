@@ -17,7 +17,7 @@ bytes 3-5 carry subcommand-specific parameters.
 
 import struct
 
-from .constants import SERVO_FULL
+from .constants import CAL_NORMAL, SERVO_FULL
 from .errors import SCSIError
 from .transport import (
     OP_DFRCMD,
@@ -142,6 +142,7 @@ def mode_select(
     hres=4096,
     vres=2730,
     servo=SERVO_FULL,
+    calibration_control=CAL_NORMAL,
 ):
     """MODE SELECT (0x15) -- configure device for exposure.
 
@@ -160,7 +161,26 @@ def mode_select(
         30:    LTDRK (light/dark threshold, default: 3)
         31-32: Image height = vertical resolution (big-endian)
         33:    Servo mode (4 = FULL calibration)
+        35:    BUFFER_USAGE = 0 (SE_BUF_AS_RECVD) — see comment below
+        36:    CALIBRATION_CONTROL (0=normal, 1=no_check, 3=no_cal)
+
+    Args:
+        calibration_control: 0=CAL_NORMAL (auto-luma + verification),
+            1=CAL_NO_CHECK (auto-luma, no verification),
+            3=CAL_NO_CAL (skip per-frame CRT calibration; firmware uses
+            hardwired autoluma — pair with a shorter or skipped poll in
+            run_exposure).  Value 2 is reserved by Polaroid; sending it
+            raises ValueError.
     """
+    if calibration_control not in (0, 1, 3):
+        if calibration_control == 2:
+            raise ValueError(
+                "calibration_control=2 is reserved by Polaroid; "
+                "use 0 (CAL_NORMAL), 1 (CAL_NO_CHECK), or 3 (CAL_NO_CAL)"
+            )
+        raise ValueError(
+            f"calibration_control must be 0, 1, or 3; got {calibration_control}"
+        )
     buf = bytearray(43)
     buf[3] = 39                            # descriptor length
     buf[4] = film                          # film table slot
@@ -183,6 +203,13 @@ def mode_select(
     buf[31] = (vres >> 8) & 0xFF           # IMAGE_HEIGHT MSB
     buf[32] = vres & 0xFF                  # IMAGE_HEIGHT LSB
     buf[33] = servo                        # Servo mode
+    # BUFFER_USAGE: 0 = SE_BUF_AS_RECVD (stream).  FULL_COLOR (1) and
+    # FULL_IMAGE (2) require buffering an entire color plane (~11 MB at 4K)
+    # in the device's 2456 KB buffer — physically impossible at production
+    # HRES.  SE_BUF_OFF (3) is SDK-marked test-only.  AS_RECVD is also the
+    # only mode where SERVO=FULL adaptive rate control is active.
+    buf[35] = 0
+    buf[36] = calibration_control          # CALIBRATION_CONTROL
     t.execute( bytes([OP_MODE_SELECT, 0, 0, 0, 43, 0]), data_out=bytes(buf))
 
 

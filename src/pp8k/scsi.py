@@ -89,9 +89,12 @@ class ScsiDevice:
             lifetime_exposures=raw["lifetime_exposures"],
         )
 
-    def mode_select(self, film, hres, vres, servo=4):
+    def mode_select(self, film, hres, vres, servo=4, calibration_control=0):
         """MODE SELECT -- configure device for exposure."""
-        commands.mode_select(self._t, film=film, hres=hres, vres=vres, servo=servo)
+        commands.mode_select(
+            self._t, film=film, hres=hres, vres=vres, servo=servo,
+            calibration_control=calibration_control,
+        )
 
     def set_color_tab(self, channel, data):
         """SET_COLOR_TAB -- load a 256-byte gamma LUT for one channel."""

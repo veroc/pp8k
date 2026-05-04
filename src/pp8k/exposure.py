@@ -31,7 +31,7 @@ Buffer management:
 import threading
 import time
 
-from .constants import BLUE, COLOR_NAMES, GREEN, RED
+from .constants import BLUE, CAL_NO_CAL, CAL_NORMAL, COLOR_NAMES, GREEN, RED
 from .errors import ExposureAbortedError, SCSIError
 from .models import ExposureProgress
 
@@ -57,6 +57,12 @@ CALIBRATION_WAIT_S = 45
 # Minimum seconds to wait before checking if calibration is complete.
 # The CRT needs at least this long to stabilize.
 CALIBRATION_MIN_S = 30
+
+# Settle delay after START_EXPOSURE when CAL_NO_CAL is in effect.
+# The firmware skips the auto-luma cycle but still needs a brief moment
+# to transition the exposure pipeline before accepting scanlines.  Tune
+# downward (or remove) once verified on real fw 568.
+CAL_NO_CAL_SETTLE_S = 2
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +96,7 @@ def run_exposure(
     bw_channel,
     on_progress=None,
     abort=None,
+    calibration_control=CAL_NORMAL,
 ):
     """Run a complete exposure workflow (blocking).
 
@@ -108,6 +115,11 @@ def run_exposure(
                      after each significant state change.
         abort: Optional threading.Event.  Set it from another thread
                to request a clean abort.
+        calibration_control: 0=CAL_NORMAL (default; full per-frame CRT
+                     calibration), 1=CAL_NO_CHECK (calibrate without
+                     verification), 3=CAL_NO_CAL (skip calibration —
+                     short fixed settle delay instead of the 30-45s
+                     poll loop).
     """
     red_lines, green_lines, blue_lines = scanlines
     height = len(red_lines)
@@ -151,7 +163,10 @@ def run_exposure(
     try:
         # --- Step 1: MODE SELECT ---
         _emit("setup")
-        device.mode_select(film=film_slot, hres=width, vres=height)
+        device.mode_select(
+            film=film_slot, hres=width, vres=height,
+            calibration_control=calibration_control,
+        )
         _check_abort(abort, device)
 
         # --- Step 2: SET_COLOR_TAB (identity LUT for all channels) ---
@@ -172,22 +187,30 @@ def run_exposure(
         # START_EXPOSURE.  We poll CURRENT_STATUS until the
         # exposure_state field transitions from 0 to non-zero,
         # indicating the CRT is calibrated and ready for scanlines.
-        for i in range(CALIBRATION_WAIT_S):
-            time.sleep(1)
+        #
+        # When calibration_control == CAL_NO_CAL, the firmware skips
+        # the auto-luma cycle entirely (per SDK tksample/timeit.c) and
+        # we use a brief fixed settle delay instead.
+        if calibration_control == CAL_NO_CAL:
+            time.sleep(CAL_NO_CAL_SETTLE_S)
             _check_abort(abort, device)
+        else:
+            for i in range(CALIBRATION_WAIT_S):
+                time.sleep(1)
+                _check_abort(abort, device)
 
-            try:
-                st = device.current_status()
-                _emit("calibrating", buffer_free_kb=st.buffer_free_kb)
+                try:
+                    st = device.current_status()
+                    _emit("calibrating", buffer_free_kb=st.buffer_free_kb)
 
-                # Only check for completion after minimum wait
-                if i >= CALIBRATION_MIN_S and st.exposure_state != 0:
-                    time.sleep(3)  # Extra settle time
-                    break
-            except SCSIError:
-                pass  # Device may be busy during calibration
+                    # Only check for completion after minimum wait
+                    if i >= CALIBRATION_MIN_S and st.exposure_state != 0:
+                        time.sleep(3)  # Extra settle time
+                        break
+                except SCSIError:
+                    pass  # Device may be busy during calibration
 
-        _check_abort(abort, device)
+            _check_abort(abort, device)
 
         # --- Step 5: Send scanlines ---
         for color, lines in channels:

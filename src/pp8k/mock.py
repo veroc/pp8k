@@ -53,6 +53,7 @@ class MockDevice:
         self._current_line = 0
         self._exposure_state = 0
         self._lifetime_exposures = 0
+        self._calibration_control = 0
         self._last_drain = time.monotonic()
 
     def open(self):
@@ -91,10 +92,15 @@ class MockDevice:
             lifetime_exposures=self._lifetime_exposures,
         )
 
-    def mode_select(self, film, hres, vres, servo=SERVO_FULL):
+    def mode_select(self, film, hres, vres, servo=SERVO_FULL, calibration_control=0):
+        if calibration_control not in (0, 1, 3):
+            raise ValueError(
+                f"calibration_control must be 0, 1, or 3; got {calibration_control}"
+            )
         self._mode["film_number"] = film
         self._mode["hres"] = hres
         self._mode["vres"] = vres
+        self._calibration_control = calibration_control
 
     def set_color_tab(self, channel, data):
         self._color_tabs[channel] = bytes(data)

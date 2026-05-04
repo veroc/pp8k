@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.7.0] - 2026-05-04
+
 ### Added
 - `calibration_control` kwarg on `commands.mode_select`,
   `ScsiDevice.mode_select`, `MockDevice.mode_select`, `run_exposure`, and
@@ -262,6 +265,7 @@ Initial release.
 - Progress callbacks emitting `ExposureProgress` (phase, channel, lines
   sent/total, buffer state, ETA).
 
+[0.7.0]: https://github.com/veroc/pp8k/releases/tag/v0.7.0
 [0.6.0]: https://github.com/veroc/pp8k/releases/tag/v0.6.0
 [0.5.0]: https://github.com/veroc/pp8k/releases/tag/v0.5.0
 [0.4.1]: https://github.com/veroc/pp8k/releases/tag/v0.4.1

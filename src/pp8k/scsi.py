@@ -92,12 +92,14 @@ class ScsiDevice:
     def mode_select(
         self, film, hres, vres, servo=4, calibration_control=0,
         ltdrk=3, cbal_rgb=(3, 3, 3),
+        lum_rgb=(100, 100, 100), etime_rgb=(100, 100, 100),
     ):
         """MODE SELECT -- configure device for exposure."""
         commands.mode_select(
             self._t, film=film, hres=hres, vres=vres, servo=servo,
             calibration_control=calibration_control,
             ltdrk=ltdrk, cbal_rgb=cbal_rgb,
+            lum_rgb=lum_rgb, etime_rgb=etime_rgb,
         )
 
     def set_color_tab(self, channel, data):

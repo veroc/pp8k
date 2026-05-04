@@ -99,6 +99,8 @@ def run_exposure(
     calibration_control=CAL_NORMAL,
     ltdrk=3,
     cbal_rgb=(3, 3, 3),
+    lum_rgb=(100, 100, 100),
+    etime_rgb=(100, 100, 100),
 ):
     """Run a complete exposure workflow (blocking).
 
@@ -127,6 +129,10 @@ def run_exposure(
                      SCSI traffic.
         cbal_rgb: Per-channel colour balance, each 0..6 (default
                      (3, 3, 3) = neutral).  Same validation behaviour.
+        lum_rgb: Per-channel luminance, each 50..200 (default
+                     (100, 100, 100) = neutral).
+        etime_rgb: Per-channel exposure time, each 50..200 (default
+                     (100, 100, 100) = neutral).
     """
     red_lines, green_lines, blue_lines = scanlines
     height = len(red_lines)
@@ -174,6 +180,7 @@ def run_exposure(
             film=film_slot, hres=width, vres=height,
             calibration_control=calibration_control,
             ltdrk=ltdrk, cbal_rgb=cbal_rgb,
+            lum_rgb=lum_rgb, etime_rgb=etime_rgb,
         )
         _check_abort(abort, device)
 

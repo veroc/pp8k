@@ -145,6 +145,8 @@ def mode_select(
     calibration_control=CAL_NORMAL,
     ltdrk=3,
     cbal_rgb=(3, 3, 3),
+    lum_rgb=(100, 100, 100),
+    etime_rgb=(100, 100, 100),
 ):
     """MODE SELECT (0x15) -- configure device for exposure.
 
@@ -181,6 +183,11 @@ def mode_select(
             COLOR_BALANCE_LEGAL).  Default (3, 3, 3) (neutral).  Out-of-
             range raises ValueError; the firmware reports field-specific
             ASC 0x254e for green.
+        lum_rgb: 3-tuple of per-channel luminance, each 50..200 (SDK
+            LUMINANT_LEGAL).  Default (100, 100, 100) (neutral).
+            Firmware reports ASCs 0x254a/0x254b/0x254c for R/G/B.
+        etime_rgb: 3-tuple of per-channel exposure time, each 50..200
+            (SDK EXP_TIME_LEGAL).  Default (100, 100, 100) (neutral).
     """
     if calibration_control not in (0, 1, 3):
         if calibration_control == 2:
@@ -198,6 +205,16 @@ def mode_select(
     for name, value in zip(("R", "G", "B"), cbal_rgb):
         if not 0 <= value <= 6:
             raise ValueError(f"cbal_{name} must be 0..6; got {value}")
+    if len(lum_rgb) != 3:
+        raise ValueError(f"lum_rgb must be a 3-tuple; got {lum_rgb!r}")
+    for name, value in zip(("R", "G", "B"), lum_rgb):
+        if not 50 <= value <= 200:
+            raise ValueError(f"lum_{name} must be 50..200; got {value}")
+    if len(etime_rgb) != 3:
+        raise ValueError(f"etime_rgb must be a 3-tuple; got {etime_rgb!r}")
+    for name, value in zip(("R", "G", "B"), etime_rgb):
+        if not 50 <= value <= 200:
+            raise ValueError(f"etime_{name} must be 50..200; got {value}")
     buf = bytearray(43)
     buf[3] = 39                            # descriptor length
     buf[4] = film                          # film table slot
@@ -207,15 +224,15 @@ def mode_select(
     buf[11] = hres & 0xFF
     buf[13] = (vres >> 8) & 0xFF           # VRES MSB
     buf[14] = vres & 0xFF                  # VRES LSB
-    buf[18] = 100                          # LUM_RED
-    buf[19] = 100                          # LUM_GREEN
-    buf[20] = 100                          # LUM_BLUE
-    buf[22] = cbal_rgb[0]                  # CBAL_RED
+    buf[18] = lum_rgb[0]                   # LUM_RED (50..200)
+    buf[19] = lum_rgb[1]                   # LUM_GREEN
+    buf[20] = lum_rgb[2]                   # LUM_BLUE
+    buf[22] = cbal_rgb[0]                  # CBAL_RED (0..6)
     buf[23] = cbal_rgb[1]                  # CBAL_GREEN
     buf[24] = cbal_rgb[2]                  # CBAL_BLUE
-    buf[26] = 100                          # ETIME_RED
-    buf[27] = 100                          # ETIME_GREEN
-    buf[28] = 100                          # ETIME_BLUE
+    buf[26] = etime_rgb[0]                 # ETIME_RED (50..200)
+    buf[27] = etime_rgb[1]                 # ETIME_GREEN
+    buf[28] = etime_rgb[2]                 # ETIME_BLUE
     buf[30] = ltdrk                        # LTDRK (0..6)
     buf[31] = (vres >> 8) & 0xFF           # IMAGE_HEIGHT MSB
     buf[32] = vres & 0xFF                  # IMAGE_HEIGHT LSB

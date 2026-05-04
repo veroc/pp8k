@@ -96,6 +96,7 @@ class MockDevice:
     def mode_select(
         self, film, hres, vres, servo=SERVO_FULL, calibration_control=0,
         ltdrk=3, cbal_rgb=(3, 3, 3),
+        lum_rgb=(100, 100, 100), etime_rgb=(100, 100, 100),
     ):
         if calibration_control not in (0, 1, 3):
             raise ValueError(
@@ -105,10 +106,16 @@ class MockDevice:
             raise ValueError(f"ltdrk must be 0..6; got {ltdrk}")
         if len(cbal_rgb) != 3 or not all(0 <= v <= 6 for v in cbal_rgb):
             raise ValueError(f"cbal_rgb must be a 3-tuple of 0..6; got {cbal_rgb!r}")
+        if len(lum_rgb) != 3 or not all(50 <= v <= 200 for v in lum_rgb):
+            raise ValueError(f"lum_rgb must be a 3-tuple of 50..200; got {lum_rgb!r}")
+        if len(etime_rgb) != 3 or not all(50 <= v <= 200 for v in etime_rgb):
+            raise ValueError(f"etime_rgb must be a 3-tuple of 50..200; got {etime_rgb!r}")
         self._mode["film_number"] = film
         self._mode["hres"] = hres
         self._mode["vres"] = vres
         self._mode["cbal_rgb"] = tuple(cbal_rgb)
+        self._mode["lum_rgb"] = tuple(lum_rgb)
+        self._mode["etime_rgb"] = tuple(etime_rgb)
         self._calibration_control = calibration_control
         self._ltdrk = ltdrk
 

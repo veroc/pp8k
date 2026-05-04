@@ -23,16 +23,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is documented as "RESERVED by Polaroid" in the SDK and is rejected
   with `ValueError` if passed; out-of-range values get a clearer
   message than the previous silent firmware rejection.
-- `ltdrk` and `cbal_rgb` kwargs on the same five entry points.  Map
-  to MODE SELECT byte 30 (light/dark threshold) and bytes 22-24
-  (per-channel colour balance).  Validated client-side against SDK
-  ranges (`LIGHT_DARK_LEGAL` and `COLOR_BALANCE_LEGAL` in
-  `tkscsi/dpalette.h:250-253`): `ltdrk` 0..6, each `cbal_rgb`
-  component 0..6.  Out-of-range values raise `ValueError` before
-  the SCSI roundtrip with the specific field named (e.g.
-  `"cbal_G must be 0..6; got 10"`) instead of the firmware's
-  generic `0x254e`/`0x2553` ASC.  Defaults `ltdrk=3`,
-  `cbal_rgb=(3, 3, 3)` (neutral) preserve existing behaviour.
+- `ltdrk`, `cbal_rgb`, `lum_rgb`, and `etime_rgb` kwargs on the same
+  five entry points.  Map to MODE SELECT bytes 30 (light/dark
+  threshold), 22-24 (per-channel colour balance), 18-20 (per-channel
+  luminance), and 26-28 (per-channel exposure time).  Validated
+  client-side against SDK ranges (`LIGHT_DARK_LEGAL`,
+  `COLOR_BALANCE_LEGAL`, `LUMINANT_LEGAL`, `EXP_TIME_LEGAL` in
+  `tkscsi/dpalette.h:250-253`): `ltdrk` 0..6, each `cbal_rgb` 0..6,
+  each `lum_rgb` 50..200, each `etime_rgb` 50..200.  Out-of-range
+  values raise `ValueError` before the SCSI roundtrip with the
+  specific field named (e.g. `"cbal_G must be 0..6; got 10"`,
+  `"lum_R must be 50..200; got 30"`) instead of the firmware's
+  generic `0x254a`-`0x254f`/`0x2553` ASC.  Defaults preserve
+  existing behaviour.
 
 ### Changed
 - MODE SELECT parameter block byte 35 (`BUFFER_USAGE`) is now written

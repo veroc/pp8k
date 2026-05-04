@@ -37,6 +37,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generic `0x254a`-`0x254f`/`0x2553` ASC.  Defaults preserve
   existing behaviour.
 
+- New `SCSIError` subclasses dispatched by ASC range in
+  `transport._raise_check_condition`:
+    - `ParameterError` -- ASC `0x2500-0x250D` and `0x2540-0x255F`
+      (command protocol and MODE SELECT parameter rejections).
+    - `HardwareError` -- ASC `0x2400-0x24FF` minus the calibration
+      sub-range, plus `0x2560-0x2572` (filter wheel jam, fuse blown,
+      door open, shutter failure, frame buffer faults).
+    - `CalibrationError` -- ASC `0x2420-0x2428` (CRT auto-luma
+      calibration failure).
+    - `FilmTableError` -- ASC `0x255A-0x255C`, `0x2575-0x2576`,
+      `0x2580-0x2588` (FLM upload rejection: bad data, bad size,
+      missing pixel tables, film-type lock mismatch).
+  All four are subclasses of `SCSIError` so existing
+  `except SCSIError` blocks continue to catch them.  The `asc` and
+  `sense_key` attributes are still populated for finer-grained
+  dispatch (e.g. distinguishing `0x254E` green-CBAL from `0x254A`
+  red-luminance, both `ParameterError`).  Unmapped ASCs fall back
+  to plain `SCSIError`.
+
 ### Changed
 - MODE SELECT parameter block byte 35 (`BUFFER_USAGE`) is now written
   explicitly as `0` (`SE_BUF_AS_RECVD`) with a rationale comment.

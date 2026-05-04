@@ -11,6 +11,17 @@ Hierarchy:
     +-- DeviceBusyError       (an exposure is already running)
     +-- ExposureAbortedError  (user or system requested abort)
     +-- SCSIError             (low-level SCSI transport or CHECK CONDITION)
+        +-- ParameterError    (firmware rejected a command parameter)
+        +-- HardwareError     (filter wheel jam, fuse, door open, etc.)
+        +-- CalibrationError  (CRT auto-luma cycle failed)
+        +-- FilmTableError    (FLM upload rejected: bad data, size, structure)
+
+The four SCSIError subclasses are dispatched by transport._raise_check_condition
+based on ASC ranges -- catching them lets callers distinguish "your input was
+bad" from "the device has a physical problem" without parsing ASC integers
+manually.  The asc and sense_key attributes are still populated for cases
+where finer-grained handling is needed (e.g. distinguishing 0x254E green-CBAL
+from 0x254A red-luminance, both ParameterError).
 """
 
 
@@ -68,3 +79,44 @@ class SCSIError(DeviceError):
         super().__init__(msg)
         self.sense_key = sense_key
         self.asc = asc
+
+
+class ParameterError(SCSIError):
+    """Firmware rejected a command parameter as out of range or invalid.
+
+    Covers ASC 0x2500-0x250D (command protocol errors) and 0x2540-0x255F
+    (MODE SELECT parameter errors).  Most well-formed cases are caught
+    client-side before the SCSI roundtrip; reaching this exception
+    typically means a bound that pp8k doesn't yet validate, a
+    firmware-quirk rejection, or a parameter mismatch (e.g. film number
+    incompatible with the attached camera back).
+    """
+
+
+class HardwareError(SCSIError):
+    """Device reported a physical or operational hardware fault.
+
+    Covers ASC 0x2400-0x241F (diagnostics, memory, video, filter wheel,
+    fuse, door, shutter, daughter board) and 0x2560-0x2572 (frame buffer
+    system errors).  Recovery typically requires user intervention --
+    closing the film door, replacing a fuse, or power-cycling the unit.
+    """
+
+
+class CalibrationError(SCSIError):
+    """CRT auto-luma calibration cycle failed.
+
+    Covers ASC 0x2420-0x2428.  Often transient -- retrying a fresh
+    START_EXPOSURE may succeed.  Persistent calibration failures
+    indicate CRT or video subsystem degradation.
+    """
+
+
+class FilmTableError(SCSIError):
+    """Device rejected an uploaded FLM film table.
+
+    Covers ASC 0x255A-0x255C, 0x2575-0x2576, and 0x2580-0x2588.
+    Typical causes: structurally invalid FLM (missing pixel tables,
+    wrong table count, ordering errors), bad file size, or a film-type
+    lock mismatch with the camera back currently attached.
+    """

@@ -32,11 +32,15 @@ from .constants import (
     SCRATCH_SLOT,
 )
 from .errors import (
+    CalibrationError,
     DeviceBusyError,
     DeviceError,
     DeviceNotFoundError,
     DeviceNotReadyError,
     ExposureAbortedError,
+    FilmTableError,
+    HardwareError,
+    ParameterError,
     SCSIError,
 )
 from .exposure import run_exposure

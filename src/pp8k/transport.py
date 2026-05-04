@@ -25,7 +25,13 @@ import ctypes
 import fcntl
 import os
 
-from .errors import SCSIError
+from .errors import (
+    CalibrationError,
+    FilmTableError,
+    HardwareError,
+    ParameterError,
+    SCSIError,
+)
 from .constants import DEVICE_ASC_MESSAGES, SENSE_KEYS
 
 
@@ -139,8 +145,42 @@ class SgIoHdr(ctypes.Structure):
 # Both transports use this helper so the error mapping stays in one place.
 # ---------------------------------------------------------------------------
 
+def _exception_class_for_asc(asc):
+    """Pick the most specific SCSIError subclass for a given ASC.
+
+    Ranges follow the layout of DEVICE_ASC_MESSAGES (see
+    constants.py).  Order matters where ranges overlap:
+    CalibrationError (0x2420-0x2428) is checked before the broader
+    HardwareError range (0x2400-0x24FF), and FilmTableError carve-outs
+    are checked before the broader ParameterError range
+    (0x2540-0x255F).  Anything outside the known ranges falls back to
+    plain SCSIError.
+    """
+    # FLM-upload rejections (carved out of the broader 0x25xx range)
+    if (asc in (0x2575, 0x2576)
+            or 0x255A <= asc <= 0x255C
+            or 0x2580 <= asc <= 0x2588):
+        return FilmTableError
+    # CRT auto-luma calibration failures (carved out of 0x24xx)
+    if 0x2420 <= asc <= 0x2428:
+        return CalibrationError
+    # Hardware / device-state faults
+    if 0x2400 <= asc <= 0x24FF or 0x2560 <= asc <= 0x2572:
+        return HardwareError
+    # Command protocol and MODE SELECT parameter errors
+    if 0x2500 <= asc <= 0x250D or 0x2540 <= asc <= 0x255F:
+        return ParameterError
+    return SCSIError
+
+
 def _raise_check_condition(sense):
-    """Decode PP8K-format sense bytes and raise SCSIError.
+    """Decode PP8K-format sense bytes and raise an SCSIError subclass.
+
+    Dispatches to ParameterError, HardwareError, CalibrationError, or
+    FilmTableError when the ASC falls in a known range; falls back to
+    plain SCSIError otherwise.  All variants carry sense_key and asc
+    attributes so callers can introspect when they need finer detail
+    than the class hierarchy provides.
 
     Args:
         sense: Raw REQUEST SENSE response (typically 10 bytes; shorter
@@ -151,7 +191,8 @@ def _raise_check_condition(sense):
     key_name = SENSE_KEYS.get(sense_key, f"Unknown(0x{sense_key:02x})")
     asc_msg = DEVICE_ASC_MESSAGES.get(asc)
     detail = f": {asc_msg}" if asc_msg else ""
-    raise SCSIError(
+    exc_class = _exception_class_for_asc(asc)
+    raise exc_class(
         f"CHECK CONDITION: {key_name}{detail} "
         f"(ASC=0x{asc:04x}, raw={sense.hex()})",
         sense_key=sense_key,

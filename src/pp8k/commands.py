@@ -105,7 +105,7 @@ def mode_sense(t):
 
     Returns a 61-byte parameter block with the active film slot,
     resolution, luminance/color balance/exposure time per channel,
-    camera back type, and frame counter.
+    camera back type, and lifetime exposure counter.
 
     Field offsets in the 61-byte response:
         4-5:   Buffer size (KB, big-endian)

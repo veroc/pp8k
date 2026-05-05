@@ -19,7 +19,7 @@ class DeviceInfo(NamedTuple):
     product: str          # e.g. "ProPalette 8K"
     firmware: int         # firmware version as integer (e.g. 568)
     revision: str         # raw 4-char revision string from INQUIRY
-    buffer_kb: int        # device buffer size in KB (typically 4096)
+    buffer_kb: int        # device buffer size in KB (typically 2456 on fw 568)
     hres_max: int         # maximum horizontal resolution (typically 8192)
     vres_max: int         # maximum vertical resolution (depends on camera back)
 

@@ -17,8 +17,11 @@ through color filters onto the film plane.
 
 Key specifications:
 - SCSI identification: `DP2SCSI` (all Digital Palette models)
-- Maximum resolution: 8192 x 7020 pixels (6x7 back)
-- Internal buffer: 4096 KB
+- Maximum addressable area: 8192 x 6710 pixels (real fw 568; older
+  Polaroid docs list 7020 but firmware rejects anything above 6710
+  with sense `0x2548`)
+- Internal buffer: 2456 KB (real fw 568; INQUIRY reports the
+  device-specific value at bytes 40-41)
 - CRT DAC: 18-bit (max display value 262,144)
 - Film table storage: 20 slots in flash memory
 - Color: 3-pass exposure through R/G/B filter wheel
@@ -101,17 +104,21 @@ Response format:
 | Offset | Length | Description |
 |--------|--------|-------------|
 | 4      | 2      | Buffer size in KB (big-endian) |
-| 6      | 1      | Active film table slot (0-19) |
+| 6      | 2      | Vendor status bytes (non-zero on a powered unit) |
+| 8      | 1      | Active film table slot (0-19) |
 | 10     | 2      | Horizontal resolution (big-endian) |
 | 17     | 2      | Vertical resolution (big-endian) |
 | 22     | 3      | Luminance R, G, B (0-200 each) |
 | 26     | 3      | Color balance R, G, B |
 | 30     | 3      | Exposure time R, G, B |
 | 46     | 4      | Camera back identifier (ASCII) |
-| 58     | 2      | Frame counter (big-endian) |
+| 58     | 2      | Lifetime exposure counter (big-endian) |
 
-Note: frame counter and camera back state are displayed on the device's
-LCD panel.  They may not update in real time during SCSI operation.
+Note: byte 6 is a vendor status byte and is *not* the active slot --
+earlier driver revisions read it that way by mistake.  Bytes 58-59
+count every exposure the unit has ever made, not per-session frames.
+Camera back state is displayed on the device's LCD panel and may not
+update in real time during SCSI operation.
 
 
 #### MODE SELECT (0x15)
@@ -346,7 +353,7 @@ A complete exposure follows this sequence:
 
 ### Buffer Management
 
-The device has a 4096 KB internal buffer.  Scanlines are sent in bursts:
+The device has a 2456 KB internal buffer (fw 568).  Scanlines are sent in bursts:
 
 1. Check CURRENT_STATUS for buffer_free_kb
 2. If < 500 KB free: wait, re-poll

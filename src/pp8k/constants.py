@@ -99,7 +99,7 @@ HARDWARE_MAX_DISPLAY = 262144   # 2^18, CRT DAC limit
 HARDWARE_MAX_STORED = 65535     # uint16 max in FLM LUT entries
 HARDWARE_MAX_HRES = 8192        # maximum horizontal resolution
 HARDWARE_MAX_VRES = 6710        # maximum vertical resolution (verified fw 568)
-HARDWARE_BUFFER_KB = 4096       # standard device buffer size
+HARDWARE_BUFFER_KB = 2456       # device buffer size (verified fw 568)
 
 # SCSI sense keys relevant to PP8K operation
 SENSE_KEYS = {

@@ -243,12 +243,38 @@ for all 58 original Polaroid film tables tested.
 
 ### 2-master normalisation
 
-Original Polaroid FLMs follow a strict 2-master authoring convention: Sets 0/2/4/6/7 are byte-identical to a "Master A" curve, Sets 1/3/5 are `ceil(Master A / 2)`, and Set 9 is `floor(Set 8 / 2)`. Editing one set in isolation breaks calibration because the firmware loads different curves at different HRES values. Use `normalize_masters()` to propagate edits cleanly:
+Original Polaroid FLMs follow a strict 2-master authoring convention with two canonical curves: **Master A = Set 7** (4K) and **Master B = Set 9** (8K). Sets 0/2/4/6 are byte-identical to Set 7, Sets 1/3/5 are `ceil(Set 7 / 2)`, and Set 8 is `2 × Set 9` (clamped to u16). Editing one set in isolation breaks calibration because the firmware loads different curves at different HRES values. Use `normalize_masters()` to propagate edits cleanly:
 
 ```python
 fixed = pp8k.normalize_masters(modified)   # rewrites derived sets from Set 7 + Set 9
 issues = pp8k.validate_masters(flm)        # returns [] if the file conforms
 ```
+
+### Calibration control
+
+By default every exposure runs the device's full per-frame CRT calibration cycle (~30-45 s on fw 568). When you're burning many frames in succession and the CRT state is stable, you can skip it:
+
+```python
+device.expose("photo.tiff", flm=flm, calibration_control=pp8k.CAL_NO_CAL)
+```
+
+`CAL_NO_CAL` (3) skips the cycle entirely; the firmware uses its hardwired auto-luma values. Verified clean on developed Plus-X 35mm at fw 568; saves ~47 s per frame. Two other modes are exported:
+
+- `CAL_NORMAL` (0) — default; full per-frame cal + verification.
+- `CAL_NO_CHECK` (1) — auto-luma without verification (no measurable speedup vs `CAL_NORMAL` on fw 568).
+
+`Device.expose()` also accepts MODE SELECT parameter overrides as kwargs: `ltdrk` (0..6), `cbal_rgb` (each 0..6), `lum_rgb` (each 50..200), `etime_rgb` (each 50..200). All are validated client-side and raise `ValueError` before the SCSI roundtrip if out of range.
+
+### Errors
+
+`pp8k.SCSIError` is dispatched into category subclasses based on the ASC range returned by the firmware:
+
+- `ParameterError` — out-of-range parameters (film number, resolution, LTDRK, CBAL, LUM, ETIME, etc.)
+- `HardwareError` — hardware faults (servo, motor, optics)
+- `CalibrationError` — calibration failures
+- `FilmTableError` — bad or unsupported film table data
+
+Catch the base `SCSIError` if you don't care about the category, or catch a subclass to handle one class of fault specifically. All four inherit from `SCSIError`, which inherits from `DeviceError`.
 
 
 ## Supported camera backs
@@ -297,7 +323,7 @@ An exposure goes through these steps:
 2. **Convert image** -- scale/crop to frame dimensions, split into per-channel scanlines
 3. **Upload film table** -- send encrypted FLM data to the device via SCSI
 4. **Configure device** -- MODE SELECT sets resolution, film slot, and servo mode
-5. **Start exposure** -- the CRT runs a 30-45 second auto-calibration cycle
+5. **Start exposure** -- the CRT runs a 30-45 second auto-calibration cycle (or pass `calibration_control=pp8k.CAL_NO_CAL` to skip it; saves ~47 s per frame)
 6. **Send scanlines** -- 50-line bursts, paced by buffer status polling (~340 KB/s throughput)
 7. **Terminate** -- finalize exposure, advance film
 

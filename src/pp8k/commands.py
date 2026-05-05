@@ -413,9 +413,11 @@ def upload_film_table(t, slot, encrypted_data):
 
     The payload is: [slot_byte] + [encrypted_FLM_data (15,639 bytes)].
     Total payload: 15,640 bytes.  The device firmware decrypts the data
-    internally and stores it in the specified slot in flash memory.
+    internally and stores it in the specified slot of the RAM-resident
+    slot table.  Slots are volatile and are wiped on every power cycle.
 
-    Uses a 30-second timeout because the flash write can be slow.
+    Uses a 30-second timeout because the upload (decrypt + load) can
+    take 5-30s on the test unit.
 
     Args:
         t: SCSI Transport.

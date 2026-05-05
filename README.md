@@ -123,7 +123,8 @@ sudo pp8k slots /dev/sg2
 # Reset the device to machine-default state (clears errors, returns to idle)
 sudo pp8k reset /dev/sg2
 
-# Persist a film table to a slot (survives power cycles, flash write ~5-30s)
+# Upload a film table to a slot (volatile -- wiped on every power cycle;
+# reinstall after each cold start.  Upload takes ~5-30s.)
 sudo pp8k install /dev/sg2 PLUSXPAN.FLM --slot 3
 sudo pp8k install /dev/sg2 PLUSXPAN.FLM --slot 3 --force        # skip confirm
 

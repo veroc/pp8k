@@ -6,7 +6,7 @@ Device commands (require a SCSI device path, e.g. /dev/sg2, and root):
     pp8k status <device>                    -- current mode and state
     pp8k slots <device>                     -- list films in device slots 0-19
     pp8k reset <device>                     -- reset device to default state
-    pp8k install <device> <FLM> --slot N    -- persist FLM to a device slot
+    pp8k install <device> <FLM> --slot N    -- upload FLM to a slot (volatile; reinstall after power cycle)
     pp8k expose <device> <image> --film <FLM> [options]
     pp8k expose <device> <image> --slot N [--filter C] [options]
 
@@ -117,7 +117,7 @@ def cmd_reset(args):
 
 
 def cmd_install(args):
-    """Persist an FLM film table to a device slot."""
+    """Upload an FLM film table to a device slot (volatile; lost at power cycle)."""
     if not 0 <= args.slot <= 19:
         print(f"Error: --slot must be 0-19, got {args.slot}", file=sys.stderr)
         return 1
@@ -149,7 +149,7 @@ def cmd_install(args):
                   "and will be overwritten on the next exposure.")
 
         print(f"Writing {len(flm.encrypted_data)} bytes to slot {args.slot} "
-              "(flash write, ~5-30s)...")
+              "(~5-30s)...")
         device.install(args.slot, flm)
         print(f"Installed {flm.name!r} to slot {args.slot}.")
     finally:

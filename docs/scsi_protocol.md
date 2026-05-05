@@ -23,7 +23,8 @@ Key specifications:
 - Internal buffer: 2456 KB (real fw 568; INQUIRY reports the
   device-specific value at bytes 40-41)
 - CRT DAC: 18-bit (max display value 262,144)
-- Film table storage: 20 slots in flash memory
+- Film table storage: 20 RAM-resident slots (volatile -- wiped on
+  every power cycle; reinstall via `pp8k install` after each cold start)
 - Color: 3-pass exposure through R/G/B filter wheel
 - B&W: single-pass exposure through selectable color filter
 
@@ -184,8 +185,8 @@ The channel is encoded in CDB byte 5: 0x00=RED, 0x40=GREEN, 0x80=BLUE.
 
 This LUT is applied per-exposure on top of the film table's built-in
 LUT curves.  An identity table (bytes 0-255) means no additional
-correction.  This is separate from the film table LUT stored in the
-device's flash memory.
+correction.  This is separate from the film table LUT loaded into the
+device's slot table.
 
 
 ##### GET_COLOR_TAB (sub 2)
@@ -283,12 +284,14 @@ Upload an encrypted .FLM film table to a device slot.
 ```
 CDB: [0x0C, 0x00, 0x0A, size_MSB, size_LSB, 0x00]
 Data: (1 + 15639) bytes to device
-Timeout: 30 seconds (flash write)
+Timeout: 30 seconds (firmware decrypt + load takes 5-30s)
 ```
 
 The payload is: one slot byte (0-19) followed by 15,639 bytes of
-encrypted FLM data.  The device firmware decrypts the data and stores
-it in flash memory at the specified slot.
+encrypted FLM data.  The device firmware decrypts the data and loads
+it into the specified RAM-resident slot.  The slot table is volatile:
+all 20 slots are wiped on every power cycle and must be reinstalled
+after each cold start.
 
 
 ##### INQUIRY_BLOCK (sub 21)

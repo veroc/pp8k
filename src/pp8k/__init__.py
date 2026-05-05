@@ -175,11 +175,13 @@ class Device:
         self._dev.reset_to_default()
 
     def install(self, slot, flm):
-        """Persist an FLM film table to a device slot (0-19).
+        """Upload an FLM film table to a device slot (0-19).
 
-        Writes the encrypted FLM bytes to the device's flash memory at
-        the specified slot.  The table survives power cycles and can be
-        selected for future exposures by slot number without re-uploading.
+        Writes the encrypted FLM bytes to the device's RAM-resident
+        slot table.  Slots are **volatile** -- the table is wiped on
+        every power cycle, so reinstall after each cold start.  Once
+        installed, the slot can be selected by number for any number
+        of exposures during the same power-on session.
 
         Slot 19 is used by expose() as a scratch slot; installing there
         will be overwritten on the next exposure.

@@ -16,7 +16,7 @@ Usage:
 
 import time
 
-from .constants import SERVO_FULL
+from .constants import HARDWARE_BUFFER_KB, SERVO_FULL
 from .models import BufferStatus, DeviceInfo, ModeState
 
 
@@ -39,7 +39,7 @@ class MockDevice:
         }
         self._color_tabs = {0: bytes(range(256)), 1: bytes(range(256)), 2: bytes(range(256))}
         self._mode = {
-            "buffer_kb": 4096,
+            "buffer_kb": HARDWARE_BUFFER_KB,
             "film_number": 4,
             "hres": 4096,
             "vres": 2730,
@@ -49,7 +49,7 @@ class MockDevice:
             "camera_back": "35mm",
         }
         self._exposure_active = False
-        self._buffer_free_kb = 4096
+        self._buffer_free_kb = HARDWARE_BUFFER_KB
         self._current_line = 0
         self._exposure_state = 0
         self._lifetime_exposures = 0
@@ -69,7 +69,7 @@ class MockDevice:
             product="ProPalette 8K",
             firmware=568,
             revision=" 568",
-            buffer_kb=4096,
+            buffer_kb=HARDWARE_BUFFER_KB,
             hres_max=8192,
             vres_max=6710,
         )
@@ -128,7 +128,7 @@ class MockDevice:
     def start_exposure(self):
         self._exposure_active = True
         self._exposure_state = 1
-        self._buffer_free_kb = 4096
+        self._buffer_free_kb = HARDWARE_BUFFER_KB
         self._current_line = 0
         self._last_drain = time.monotonic()
 
@@ -154,7 +154,7 @@ class MockDevice:
         elapsed = now - self._last_drain
         self._last_drain = now
         drained = int(elapsed * 2000)
-        self._buffer_free_kb = min(4096, self._buffer_free_kb + drained)
+        self._buffer_free_kb = min(HARDWARE_BUFFER_KB, self._buffer_free_kb + drained)
 
         return BufferStatus(
             buffer_free_kb=self._buffer_free_kb,
@@ -173,7 +173,7 @@ class MockDevice:
     def reset_to_default(self):
         self._exposure_active = False
         self._exposure_state = 0
-        self._buffer_free_kb = 4096
+        self._buffer_free_kb = HARDWARE_BUFFER_KB
         self._current_line = 0
 
     def upload_film_table(self, slot, encrypted_data):

@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [0.7.1] - 2026-05-05
+
+### Changed
+- `CAL_NO_CAL_SETTLE_S` lowered from 2 s to 0 s after hardware
+  verification on real fw 568.  The CAL_NO_CAL path's measured
+  ready-time is fully covered by the existing setup path
+  (MODE SELECT + 3× SET_COLOR_TAB + START_EXPOSURE, ~2.3 s),
+  so the explicit settle sleep is unnecessary on the test unit.
+  Roll-2 burn (2026-05-05) bracketed the constant at
+  {2.0, 1.0, 0.5, 0.25} on developed Plus-X frames and saw no
+  top-of-frame banding, exposure ramp, or dropped lines at any
+  value.  Constant retained (rather than inlined) as a monkey-
+  patchable escape hatch if a future firmware revision behaves
+  differently.
+
+### Doc fixes
+- Corrected stale spec values and labels in `docs/scsi_protocol.md`
+  and surrounding code/CLI/README copy: MODE SENSE byte 6 is a
+  vendor status byte (active slot is at byte 8); bytes 58-59 are a
+  lifetime exposure counter, not a per-session frame counter; max
+  vertical resolution is 6710, not 7020 (firmware rejects above
+  6710); device buffer is 2456 KB on fw 568, not 4096.
+- Corrected the long-standing claim that user-installed FLM slots
+  are flash-persistent.  All 20 slots are RAM-resident and wiped
+  on every power cycle; the LCD config-menu film list is a
+  separate firmware-ROM table that survives.  Reinstall via
+  `pp8k install` after each cold start.
+
+
 ## [0.7.0] - 2026-05-04
 
 ### Added

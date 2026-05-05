@@ -59,10 +59,16 @@ CALIBRATION_WAIT_S = 45
 CALIBRATION_MIN_S = 30
 
 # Settle delay after START_EXPOSURE when CAL_NO_CAL is in effect.
-# The firmware skips the auto-luma cycle but still needs a brief moment
-# to transition the exposure pipeline before accepting scanlines.  Tune
-# downward (or remove) once verified on real fw 568.
-CAL_NO_CAL_SETTLE_S = 2
+# Empirically 0 s on real fw 568 — the device is ready by the time
+# scanlines arrive.  Roll-2 burn (2026-05-05) bracketed this at
+# {2.0, 1.0, 0.5, 0.25} on developed Plus-X frames and saw no
+# top-of-frame banding, exposure ramp, or dropped lines at any
+# value, including the lowest tested.  The MODE SELECT + 3×
+# SET_COLOR_TAB + START_EXPOSURE setup path takes ~2.3 s on its
+# own, which is the actual floor.  Constant kept (rather than
+# inlined) as a monkey-patchable escape hatch if a future firmware
+# rev needs more settle time.
+CAL_NO_CAL_SETTLE_S = 0
 
 
 # ---------------------------------------------------------------------------

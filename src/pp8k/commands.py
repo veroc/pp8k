@@ -105,7 +105,7 @@ def mode_sense(t):
 
     Returns a 61-byte parameter block with the active film slot,
     resolution, luminance/color balance/exposure time per channel,
-    camera back type, and lifetime exposure counter.
+    and camera back type.
 
     Field offsets in the 61-byte response:
         4-5:   Buffer size (KB, big-endian)
@@ -116,11 +116,17 @@ def mode_sense(t):
         26-28: Color balance R, G, B
         30-32: Exposure time R, G, B
         46-49: Camera back identifier (ASCII)
-        58-59: Lifetime exposure counter (big-endian, unit-lifetime, not session)
 
     Byte 6 is a vendor status byte (typically non-zero on a powered unit)
     and is not the film slot -- earlier driver revisions parsed it that
     way by mistake.
+
+    Bytes 58-59 carry an undecoded firmware-internal value that is
+    invariant on the test unit (does not increment per exposure) and
+    is not extracted by Polaroid's own toolkit
+    (`pfr_dev/dpalette/dpalette.c:505-512` only reads bytes 45-46+).
+    Earlier pp8k versions exposed these as `lifetime_exposures`,
+    which was incorrect; the field was removed in 0.7.2.
     """
     data = t.execute( bytes([OP_MODE_SENSE, 0, 0, 0, 61, 0]), data_in_len=61)
     return {
@@ -132,7 +138,6 @@ def mode_sense(t):
         "cbal_rgb": (data[26], data[27], data[28]),
         "etime_rgb": (data[30], data[31], data[32]),
         "camera_back": data[46:50].decode("ascii", errors="replace").strip(),
-        "lifetime_exposures": struct.unpack_from(">H", data, 58)[0],
     }
 
 

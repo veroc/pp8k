@@ -52,7 +52,6 @@ class MockDevice:
         self._buffer_free_kb = HARDWARE_BUFFER_KB
         self._current_line = 0
         self._exposure_state = 0
-        self._lifetime_exposures = 0
         self._calibration_control = 0
         self._ltdrk = 3
         self._last_drain = time.monotonic()
@@ -90,7 +89,6 @@ class MockDevice:
             cbal_rgb=self._mode["cbal_rgb"],
             etime_rgb=self._mode["etime_rgb"],
             camera_back=self._mode["camera_back"],
-            lifetime_exposures=self._lifetime_exposures,
         )
 
     def mode_select(
@@ -142,7 +140,6 @@ class MockDevice:
     def terminate_exposure(self):
         self._exposure_active = False
         self._exposure_state = 0
-        self._lifetime_exposures += 1
 
     def stop_print(self):
         self._exposure_active = False

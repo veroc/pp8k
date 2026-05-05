@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [0.7.2] - 2026-05-05
+
+### Removed (breaking)
+- `ModeState.lifetime_exposures` and the underlying parse of MODE
+  SENSE bytes 58-59.  The label was incorrect: the value is
+  invariant on the test unit (35,168 across many exposures and
+  power cycles), so it cannot be a per-exposure counter.
+  Polaroid's reverse-engineered toolkit at
+  `pfr_dev/dpalette/dpalette.c:505-512` does not extract these
+  bytes either, suggesting the official driver never surfaced
+  them.  Bytes 58-59 are now documented as undecoded
+  firmware-internal data.  If a future investigation determines
+  what they actually represent, a properly-named field can be
+  added.
+
+  Also removed: `MockDevice._lifetime_exposures` state and the
+  `mock.terminate_exposure` increment; `pp8k status` no longer
+  prints a "Lifetime exp" line; README sample output updated.
+
+
 ## [0.7.1] - 2026-05-05
 
 ### Changed

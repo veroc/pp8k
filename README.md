@@ -184,7 +184,7 @@ flm = pp8k.load_flm("PLUSXPAN.FLM")
 # Connect and expose
 with pp8k.open("/dev/sg2") as device:                           # or pp8k.open(4)
     print(device.info)    # DeviceInfo(product='ProPalette 8K', firmware=568, ...)
-    print(device.mode)    # ModeState(film_number=4, hres=4096, vres=2730, ..., lifetime_exposures=35168)
+    print(device.mode)    # ModeState(film_number=4, hres=4096, vres=2730, ..., camera_back='35mm')
 
     device.expose("photo.tiff", flm=flm)
 

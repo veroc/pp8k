@@ -113,13 +113,18 @@ Response format:
 | 26     | 3      | Color balance R, G, B |
 | 30     | 3      | Exposure time R, G, B |
 | 46     | 4      | Camera back identifier (ASCII) |
-| 58     | 2      | Lifetime exposure counter (big-endian) |
+| 58     | 2      | Undecoded firmware-internal value |
 
 Note: byte 6 is a vendor status byte and is *not* the active slot --
 earlier driver revisions read it that way by mistake.  Bytes 58-59
-count every exposure the unit has ever made, not per-session frames.
-Camera back state is displayed on the device's LCD panel and may not
-update in real time during SCSI operation.
+were briefly exposed by pp8k as `lifetime_exposures` based on the
+inference from a single test unit; that turned out to be wrong (the
+value is invariant per power cycle and per exposure on the test
+unit, and Polaroid's own toolkit at
+`pfr_dev/dpalette/dpalette.c:505-512` does not extract these bytes
+from the MODE SENSE response).  pp8k 0.7.2 dropped the field.
+Camera back state is displayed on the device's LCD panel and may
+not update in real time during SCSI operation.
 
 
 #### MODE SELECT (0x15)
